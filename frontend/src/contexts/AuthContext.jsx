@@ -1,6 +1,12 @@
-// frontend/src/contexts/AuthContext.jsx
+// frontend/src/contexts/AuthContext.jsx (COMPLETE REVISION)
 import { createContext, useContext, useState, useEffect } from "react";
-import { loginUser, registerUser, getCurrentUser } from "../utils/api";
+// Import the new 'logoutUser' function
+import {
+  loginUser,
+  registerUser,
+  getCurrentUser,
+  logoutUser,
+} from "../utils/api";
 import { toast } from "react-toastify";
 
 const AuthContext = createContext();
@@ -13,52 +19,57 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // --- REVISED PERSISTENT LOGIN (Breaks Reload Loop) ---
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      getCurrentUser()
-        .then((user) => {
-          setCurrentUser(user);
-        })
-        .catch((error) => {
-          console.error("Auth error:", error);
-          localStorage.removeItem("token");
-          toast.error("Session expired. Please log in again.");
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
+    getCurrentUser()
+      .then((user) => {
+        // Session valid
+        setCurrentUser(user);
+      })
+      .catch((error) => {
+        // 🔑 FIX: Catch the error and set currentUser to null gracefully.
+        // The API call failed (likely 401), meaning the session is dead.
+        console.warn("Auth context session check failed. Logging user out.");
+        setCurrentUser(null);
+        // The reload loop is broken because we don't throw/redirect here.
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
+  // --- REVISED LOGIN FUNCTION ---
   const login = async (email, password) => {
     const response = await loginUser(email, password);
-    if (response.token) {
-      localStorage.setItem("token", response.token);
+
+    // Success is based on receiving user data, as the token is in the cookie.
+    if (response.user) {
       setCurrentUser(response.user);
       toast.success("Login successful! 🎉");
       return { success: true };
     }
+
     toast.error(response.message || "Login failed ❌");
     return { success: false, message: response.message };
   };
 
+  // --- REVISED REGISTER FUNCTION ---
   const register = async (userData) => {
     const response = await registerUser(userData);
-    if (response.token) {
-      localStorage.setItem("token", response.token);
+
+    if (response.user) {
       setCurrentUser(response.user);
       toast.success("Registration successful! 🎉");
       return { success: true };
     }
+
     toast.error(response.message || "Registration failed ❌");
     return { success: false, message: response.message };
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
+  // --- REVISED LOGOUT FUNCTION ---
+  const logout = async () => {
+    await logoutUser(); // Tells Flask to destroy the cookie
     setCurrentUser(null);
     toast.info("Logged out successfully 👋");
   };
@@ -70,7 +81,6 @@ export const AuthProvider = ({ children }) => {
     }));
   };
 
-  // Add admin check helper function
   const isAdmin = () => {
     return currentUser && currentUser.is_admin === true;
   };
@@ -81,7 +91,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateUser,
-    isAdmin, // Add isAdmin function to context value
+    isAdmin,
   };
 
   return (

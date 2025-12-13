@@ -68,7 +68,10 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     ma.init_app(app)
     jwt.init_app(app)
-    CORS(app)
+    CORS(app, 
+         resources={r"/api/*": {"origins": "http://localhost:5173"}}, # Limit access to your frontend
+         supports_credentials=True # CRITICAL: Allows the Access-Control-Allow-Credentials header to be true
+    )
     
     # Register blueprints
     from controllers.cake_controller import cake_bp

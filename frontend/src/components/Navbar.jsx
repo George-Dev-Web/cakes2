@@ -1,8 +1,121 @@
-// frontend/src/components/Navbar.jsx
+// // frontend/src/components/Navbar.jsx
+// import { useState } from "react";
+// import { Link } from "react-router-dom";
+// import { useAuth } from "../contexts/AuthContext";
+// import { useTheme } from "../contexts/ThemeContext";
+// import "./Navbar.css";
+
+// const Navbar = () => {
+//   const [isMenuOpen, setIsMenuOpen] = useState(false);
+//   const { currentUser, logout } = useAuth();
+//   const { isDarkMode, toggleTheme } = useTheme();
+
+//   const toggleMenu = () => {
+//     setIsMenuOpen(!isMenuOpen);
+//   };
+
+//   const handleLogout = () => {
+//     logout();
+//     setIsMenuOpen(false);
+//   };
+
+//   return (
+//     <nav className="navbar">
+//       <div className="nav-container">
+//         <Link to="/" className="nav-logo">
+//           Velvelt Bloom
+//         </Link>
+
+//         <div className={`nav-menu ${isMenuOpen ? "active" : ""}`}>
+//           <Link
+//             to="/"
+//             className="nav-link"
+//             onClick={() => setIsMenuOpen(false)}
+//           >
+//             Home
+//           </Link>
+//           <Link
+//             to="/order"
+//             className="nav-link"
+//             onClick={() => setIsMenuOpen(false)}
+//           >
+//             Order
+//           </Link>
+
+//           <li>
+//             <Link to="/cakes">Cakes</Link>
+//           </li>
+
+//           <Link
+//             to="/contact"
+//             className="nav-link"
+//             onClick={() => setIsMenuOpen(false)}
+//           >
+//             Contact
+//           </Link>
+
+//           {/* Theme Toggle */}
+//           <button className="theme-toggle" onClick={toggleTheme}>
+//             {isDarkMode ? "☀️" : "🌙"}
+//           </button>
+
+//           {currentUser ? (
+//             <>
+//               <Link
+//                 to="/dashboard"
+//                 className="nav-link"
+//                 onClick={() => setIsMenuOpen(false)}
+//               >
+//                 Dashboard
+//               </Link>
+//               <button className="nav-link btn-logout" onClick={handleLogout}>
+//                 Logout
+//               </button>
+//             </>
+//           ) : (
+//             <>
+//               <Link
+//                 to="/login"
+//                 className="nav-link"
+//                 onClick={() => setIsMenuOpen(false)}
+//               >
+//                 Login
+//               </Link>
+//               <Link
+//                 to="/register"
+//                 className="nav-link"
+//                 onClick={() => setIsMenuOpen(false)}
+//               >
+//                 Register
+//               </Link>
+//             </>
+//           )}
+//         </div>
+
+//         <div className="nav-right">
+//           <button className="theme-toggle mobile-only" onClick={toggleTheme}>
+//             {isDarkMode ? "☀️" : "🌙"}
+//           </button>
+//           <div className="nav-icon" onClick={toggleMenu}>
+//             <span></span>
+//             <span></span>
+//             <span></span>
+//           </div>
+//         </div>
+//       </div>
+//     </nav>
+//   );
+// };
+
+// export default Navbar;
+
+// frontend/src/components/Navbar.jsx - REVISED STRUCTURE
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { FaShoppingCart, FaUser, FaSearch } from "react-icons/fa"; // You will need to install react-icons if you haven't
+
 import "./Navbar.css";
 
 const Navbar = () => {
@@ -10,98 +123,86 @@ const Navbar = () => {
   const { currentUser, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
+  // ... (toggleMenu and handleLogout functions remain the same)
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const handleLogout = () => {
     logout();
     setIsMenuOpen(false);
   };
 
   return (
-    <nav className="navbar">
-      <div className="nav-container">
+    <nav className="navbar-new">
+      {" "}
+      {/* New class for styling */}
+      <div className="nav-logo-area">
         <Link to="/" className="nav-logo">
-          Velvelt Bloom
+          {/* Use an actual logo/icon here, like in the example */}
+          <span className="logo-icon">🍰</span> Velvet Bloom
         </Link>
 
-        <div className={`nav-menu ${isMenuOpen ? "active" : ""}`}>
-          <Link
-            to="/"
-            className="nav-link"
-            onClick={() => setIsMenuOpen(false)}
-          >
+        {/* Main navigation links moved near the logo, like the smaller links in the CakeHub example */}
+        <div className="nav-main-links desktop-only">
+          <Link to="/" className="nav-link">
             Home
           </Link>
-          <Link
-            to="/order"
-            className="nav-link"
-            onClick={() => setIsMenuOpen(false)}
-          >
+          <Link to="/order" className="nav-link">
             Order
           </Link>
-
-          <li>
-            <Link to="/cakes">Cakes</Link>
-          </li>
-
-          <Link
-            to="/contact"
-            className="nav-link"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Contact
+          <Link to="/cakes" className="nav-link">
+            Cakes
           </Link>
-
-          {/* Theme Toggle */}
-          <button className="theme-toggle" onClick={toggleTheme}>
-            {isDarkMode ? "☀️" : "🌙"}
-          </button>
-
-          {currentUser ? (
-            <>
-              <Link
-                to="/dashboard"
-                className="nav-link"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Dashboard
-              </Link>
-              <button className="nav-link btn-logout" onClick={handleLogout}>
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="nav-link"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="nav-link"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Register
-              </Link>
-            </>
-          )}
         </div>
+      </div>
+      {/* --- Middle Section: Search Bar --- */}
+      <div className="nav-search-bar">
+        <input
+          type="text"
+          placeholder="Search cakes..."
+          className="search-input"
+        />
+        <button className="search-button" aria-label="Search">
+          <FaSearch />
+        </button>
+      </div>
+      {/* --- Right Section: Icons and Auth --- */}
+      <div className="nav-utility-area">
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label="Toggle Theme"
+        >
+          {isDarkMode ? "☀️" : "🌙"}
+        </button>
 
-        <div className="nav-right">
-          <button className="theme-toggle mobile-only" onClick={toggleTheme}>
-            {isDarkMode ? "☀️" : "🌙"}
-          </button>
-          <div className="nav-icon" onClick={toggleMenu}>
-            <span></span>
-            <span></span>
-            <span></span>
+        {/* Cart Icon */}
+        <Link to="/cart" className="utility-icon" aria-label="Shopping Cart">
+          <FaShoppingCart />
+          <span className="cart-count">3</span> {/* Example count */}
+        </Link>
+
+        {/* User/Auth Icon */}
+        {currentUser ? (
+          <div className="auth-menu">
+            <Link
+              to="/dashboard"
+              className="utility-icon user-dashboard"
+              aria-label="Dashboard"
+            >
+              <FaUser />
+            </Link>
+            <button className="btn-logout" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
-        </div>
+        ) : (
+          <Link to="/login" className="btn-login">
+            <FaUser /> Login
+          </Link>
+        )}
+      </div>
+      {/* Mobile Menu (Keep your existing toggle logic for mobile responsiveness) */}
+      <div className="mobile-menu-toggle" onClick={toggleMenu}>
+        {/* Hamburger icon here */}
       </div>
     </nav>
   );

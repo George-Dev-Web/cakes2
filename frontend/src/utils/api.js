@@ -1,4 +1,4 @@
-// frontend/src/utils/api.js
+// frontend/src/utils/api.js (COMPLETE REVISION)
 import axios from "axios";
 
 const API_BASE_URL =
@@ -9,25 +9,27 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // CRITICAL: Must be true to send and receive HTTP-only cookies
+  withCredentials: true,
 });
 
-// Add token to requests if available
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// --- REMOVED REQUEST INTERCEPTOR (No more localStorage token) ---
 
-// Handle authentication errors
+// Handle authentication errors (FIXED: Removes Redirect Loop)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
+      // 🔑 CRITICAL FIX: DO NOT REDIRECT OR TOUCH WINDOW.
+      // Simply reject the promise. This allows AuthContext's useEffect to
+      // catch the error and set currentUser to null, stopping the loop.
+      console.warn("API 401 Unauthorized: Session check failed.");
+
+      // We explicitly reject the promise for the caller to catch.
+      return Promise.reject(error);
     }
+
+    // For other errors (500, 404, etc.), reject as usual.
     return Promise.reject(error);
   }
 );
@@ -35,35 +37,49 @@ api.interceptors.response.use(
 // Auth API calls
 export const loginUser = async (email, password) => {
   const response = await api.post("/auth/login", { email, password });
-  return response.data;
+  // Token is set in cookie. Return user data from response body.
+  return {
+    user: response.data.user,
+    message: response.data.message || "Login successful",
+  };
 };
 
 export const registerUser = async (userData) => {
   const response = await api.post("/auth/register", userData);
-  return response.data;
+  // Token is set in cookie. Return user data from response body.
+  return {
+    user: response.data.user,
+    message: response.data.message || "Registration successful",
+  };
 };
 
-// FIXED getCurrentUser function
+// NEW: Logout utility function
+export const logoutUser = async () => {
+  // This call tells the Flask backend to unset the HTTP-only cookie.
+  await api.post("/auth/logout");
+  return { success: true };
+};
+
 export const getCurrentUser = async () => {
   try {
     const response = await api.get("/auth/me");
     return response.data;
   } catch (error) {
+    // If the error is a 401, the interceptor rejects it, and AuthContext catches it.
     console.error("Error fetching current user:", error.response?.data);
     throw error;
   }
 };
 
-// Cakes API calls
+// --- All other API calls remain the same ---
+
 export const fetchCakes = async () => {
   const response = await api.get("/cakes");
   return response.data;
 };
 
-// Orders API calls
 export const submitOrder = async (orderData) => {
   try {
-    // Ensure delivery_date is properly formatted
     const formattedData = {
       ...orderData,
       delivery_date: orderData.deliveryDate || orderData.delivery_date,
@@ -83,13 +99,10 @@ export const fetchUserOrders = async () => {
     return response.data;
   } catch (error) {
     console.error("Error fetching user orders:", error.response?.data);
-
-    // Handle specific error cases
     if (error.response?.status === 422) {
       throw new Error("Unable to fetch orders. Please try logging in again.");
     } else if (error.response?.status === 401) {
-      // Token might be invalid, clear it
-      localStorage.removeItem("token");
+      // No localStorage removal needed now
       throw new Error("Session expired. Please log in again.");
     } else {
       throw new Error("Failed to load orders. Please try again later.");
@@ -117,13 +130,11 @@ export const updateUserProfile = async (profileData) => {
   }
 };
 
-// Contact API call
 export const submitContactForm = async (formData) => {
   const response = await api.post("/contact", formData);
   return response.data;
 };
 
-// Admin API calls - Added without changing existing logic
 export const fetchAdminStats = async () => {
   try {
     const response = await api.get("/admin/dashboard/stats");
@@ -206,10 +217,9 @@ export const fetchAdminUsers = async (params = {}) => {
   }
 };
 
-// Customizations API call
 export const fetchCustomizations = async () => {
   try {
-    const response = await api.get("/customizations"); // make sure your backend has this endpoint
+    const response = await api.get("/customizations");
     return response.data;
   } catch (error) {
     console.error("Error fetching customizations:", error.response?.data);

@@ -1,123 +1,51 @@
-/* frontend/src/components/Navbar.css
-.navbar {
-  background-color: var(--card-bg);
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
+/* frontend/src/components/Navbar.css - TWEAKED FOR CAKEHUB LAYOUT */
 
-.nav-container {
+/* --- 1. Base Structure & Styling --- */
+
+.navbar-new {
+  /* Renamed from .navbar to match the new JSX */
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.nav-logo {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--accent-color);
-  text-decoration: none;
-}
-
-.nav-menu {
-  display: flex;
-  list-style: none;
-}
-
-.nav-link {
-  text-decoration: none;
-  color: var(--text-color);
-  font-weight: 500;
-  transition: var(--transition);
-  margin-left: 30px;
-}
-
-.nav-link:hover {
-  color: var(--primary-color);
-}
-
-.nav-icon {
-  display: none;
-  flex-direction: column;
-  cursor: pointer;
-}
-
-.nav-icon span {
-  width: 25px;
-  height: 3px;
-  background-color: var(--text-color);
-  margin: 2px 0;
-  transition: var(--transition);
-}
-
-@media screen and (max-width: 768px) {
-  .nav-icon {
-    display: flex;
-  }
-
-  .nav-menu {
-    position: fixed;
-    left: -100%;
-    top: 70px;
-    flex-direction: column;
-    background-color: var(--card-bg);
-    width: 100%;
-    text-align: center;
-    transition: 0.3s;
-    box-shadow: var(--shadow);
-    padding: 20px 0;
-  }
-
-  .nav-menu.active {
-    left: 0;
-  }
-
-  .nav-link {
-    margin: 15px 0;
-    display: block;
-  }
-} */
-
-/* frontend/src/components/Navbar.css */
-.navbar {
+  /* Use your existing variables for consistent theme */
   background-color: var(--card-bg);
   box-shadow: var(--shadow);
   position: sticky;
   top: 0;
   z-index: 1000;
+  padding: 15px 50px; /* More padding for a spacious look */
   border-bottom: 1px solid var(--card-border);
 }
 
-.nav-container {
+/* 2. Left Section: Logo and Main Links */
+.nav-logo-area {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  gap: 30px; /* Space between logo and links */
 }
 
 .nav-logo {
-  font-size: 24px;
+  /* Retaining your logo style */
+  font-size: 1.5rem;
   font-weight: 700;
-  color: var(--accent-color);
+  color: var(--primary-color); /* Using your theme color for the logo */
   text-decoration: none;
   display: flex;
   align-items: center;
 }
 
-.nav-menu {
+.logo-icon {
+  font-size: 1.8rem;
+  margin-right: 8px;
+}
+
+.nav-main-links {
   display: flex;
   align-items: center;
-  list-style: none;
   gap: 15px;
 }
 
-.nav-link {
+.nav-main-links .nav-link {
   text-decoration: none;
   color: var(--text-color);
   font-weight: 500;
@@ -126,12 +54,129 @@
   border-radius: var(--border-radius);
 }
 
-.nav-link:hover {
+.nav-main-links .nav-link:hover {
   color: var(--primary-color);
   background-color: var(--secondary-color);
 }
 
+/* 3. Middle Section: Search Bar */
+.nav-search-bar {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--card-border); /* Use your existing border color */
+  border-radius: 25px;
+  overflow: hidden;
+  max-width: 400px;
+  flex-grow: 1;
+  margin: 0 40px; /* Space from side sections */
+  background-color: var(
+    --background-color
+  ); /* Use a light background for the input */
+}
+
+.search-input {
+  border: none;
+  padding: 10px 15px;
+  font-size: 1rem;
+  outline: none;
+  flex-grow: 1;
+  background: transparent; /* Inherit the background */
+  color: var(--text-color);
+}
+
+.search-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  height: 100%;
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.search-button:hover {
+  background-color: var(
+    --accent-color
+  ); /* Assuming accent is a slightly darker primary */
+}
+
+/* 4. Right Section: Utility and Auth */
+.nav-utility-area {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.utility-icon {
+  position: relative;
+  color: var(--text-color);
+  font-size: 1.3rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.utility-icon:hover {
+  color: var(--primary-color);
+}
+
+.cart-count {
+  /* Style for the badge on the cart icon */
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btn-login {
+  /* The primary login button style */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 8px 15px;
+  border: 2px solid var(--primary-color);
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.btn-login:hover {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.auth-menu {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.btn-logout {
+  /* Retaining your logout button style */
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--text-color);
+  cursor: pointer;
+  font-weight: 500;
+  transition: color var(--transition);
+}
+
+.btn-logout:hover {
+  color: var(--primary-color);
+}
+
 .theme-toggle {
+  /* Retaining your theme toggle style */
   background: none;
   border: none;
   font-size: 1.2rem;
@@ -148,106 +193,92 @@
   background-color: var(--secondary-color);
   transform: scale(1.1);
 }
+u
 
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.mobile-only {
+/* Hide the mobile toggle icon on desktop */
+.mobile-menu-toggle {
   display: none;
 }
 
-.btn-logout {
-  background: none;
-  border: none;
-  font: inherit;
-  cursor: pointer;
-  margin-left: 0;
-}
+/* --- 5. Responsiveness (Mobile Logic Adapted) --- */
 
-.nav-icon {
-  display: none;
-  flex-direction: column;
-  cursor: pointer;
-  padding: 5px;
-}
-
-.nav-icon span {
-  width: 25px;
-  height: 3px;
-  background-color: var(--text-color);
-  margin: 2px 0;
-  transition: var(--transition);
-  border-radius: 2px;
-}
-
-/* Enhanced mobile styles */
-@media screen and (max-width: 768px) {
-  .nav-container {
-    padding: 12px 15px;
+/* Note: The new classes are .nav-main-links (for desktop menu) and a mobile menu 
+   overlay logic for the expanded links. */
+@media screen and (max-width: 950px) {
+  /* Hide search bar and main links on intermediate screens */
+  .nav-search-bar,
+  .nav-main-links {
+    display: none;
   }
 
-  .nav-menu {
+  .navbar-new {
+    padding: 15px 20px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .nav-logo-area {
+    /* On mobile, we only want the logo on the far left */
+    gap: 0;
+  }
+
+  /* Show the mobile menu toggle */
+  .mobile-menu-toggle {
+    display: block;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    padding: 5px;
+  }
+
+  /* Hamburger icon style */
+  .mobile-menu-toggle span {
+    width: 25px;
+    height: 3px;
+    background-color: var(--text-color);
+    margin: 2px 0;
+    transition: var(--transition);
+    border-radius: 2px;
+  }
+
+  /* The hidden menu overlay (renamed from .nav-menu to better reflect purpose) */
+  .nav-utility-area {
     position: fixed;
     left: -100%;
+    /* Use the height of the navbar for the top offset */
     top: 60px;
     flex-direction: column;
     background-color: var(--card-bg);
     width: 100%;
+    height: calc(100vh - 60px); /* Fill the rest of the screen */
     text-align: center;
     transition: 0.3s;
     box-shadow: var(--shadow);
     padding: 20px 0;
-    gap: 0;
     z-index: 999;
+    gap: 30px; /* More spacing for mobile links */
   }
 
-  .nav-menu.active {
+  .nav-utility-area.active {
     left: 0;
   }
 
-  .nav-link {
-    margin: 12px 0;
-    display: block;
-    padding: 12px;
-    width: 100%;
+  /* Style individual elements inside the mobile menu */
+  .auth-menu {
+    flex-direction: column;
+    gap: 15px;
   }
 
-  .theme-toggle:not(.mobile-only) {
-    display: none;
-  }
-
-  .mobile-only {
-    display: flex;
-  }
-
-  .nav-icon {
-    display: flex;
-  }
-
-  .nav-icon.active span:nth-child(1) {
-    transform: rotate(-45deg) translate(-5px, 6px);
-  }
-
-  .nav-icon.active span:nth-child(2) {
-    opacity: 0;
-  }
-
-  .nav-icon.active span:nth-child(3) {
-    transform: rotate(45deg) translate(-5px, -6px);
-  }
-}
-
-/* Large mobile devices */
-@media screen and (max-width: 480px) {
-  .nav-logo {
-    font-size: 20px;
-  }
-
-  .theme-toggle {
+  .btn-logout {
     font-size: 1.1rem;
-    padding: 6px;
+    padding: 10px;
+  }
+
+  .btn-login {
+    justify-content: center;
+  }
+
+  .utility-icon {
+    font-size: 1.6rem;
   }
 }
