@@ -1,150 +1,93 @@
-// // frontend/src/App.jsx
-// import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-// import { AuthProvider } from "./contexts/AuthContext";
-// import { ThemeProvider } from "./contexts/ThemeContext";
-// import Navbar from "./components/Navbar";
-// import Home from "./pages/Home";
-// import Order from "./pages/Order";
-// import ContactPage from "./pages/ContactPage";
-// import Login from "./pages/Login";
-// import Register from "./pages/Register";
-// import Dashboard from "./pages/Dashboard";
-// import AdminDashboard from "./pages/Admin/AdminDashboard"; // Import AdminDashboard
-// import ProtectedRoute from "./components/ProtectedRoute";
-// import AdminProtectedRoute from "./components/AdminProtectedRoute"; // Import AdminProtectedRoute
-// import "./App.css";
-// import { ToastContainer } from "react-toastify";
-// import "react-toastify/dist/ReactToastify.css";
-// import { MessageProvider } from "./contexts/MessageContext";
-// import CakePortfolio from "./pages/CakePortfolio";
+// frontend/src/App.jsx (REVISED)
 
-// function App() {
-//   return (
-//     <ThemeProvider>
-//       <AuthProvider>
-//         <MessageProvider>
-//           <Router>
-//             <div className="App">
-//               <Navbar />
-//               <Routes>
-//                 <Route path="/" element={<Home />} />
-//                 <Route path="/order" element={<Order />} />
-//                 <Route path="/login" element={<Login />} />
-//                 <Route path="/register" element={<Register />} />
-//                 <Route path="/contact" element={<ContactPage />} />
-//                 <Route path="/cakes" element={<CakePortfolio />} />
-
-//                 <Route
-//                   path="/dashboard"
-//                   element={
-//                     <ProtectedRoute>
-//                       <Dashboard />
-//                     </ProtectedRoute>
-//                   }
-//                 />
-//                 {/* Add Admin Dashboard Route */}
-//                 <Route
-//                   path="/admin"
-//                   element={
-//                     <AdminProtectedRoute>
-//                       <AdminDashboard />
-//                     </AdminProtectedRoute>
-//                   }
-//                 />
-//               </Routes>
-
-//               {/* Toast Container */}
-//               <ToastContainer
-//                 position="top-right"
-//                 autoClose={3000}
-//                 hideProgressBar={false}
-//                 newestOnTop={false}
-//                 closeOnClick
-//                 pauseOnHover
-//                 draggable
-//                 theme="colored"
-//               />
-//             </div>
-//           </Router>
-//         </MessageProvider>
-//       </AuthProvider>
-//     </ThemeProvider>
-//   );
-// }
-
-// export default App;
-
+// frontend/src/App.jsx
+import { useState } from "react"; // 🔑 Import useState for cart state
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { MessageProvider } from "./contexts/MessageContext"; // Keep imports clean
+import { MessageProvider } from "./contexts/MessageContext";
+import { CartProvider } from "./contexts/CartContext";
+
 import Navbar from "./components/Navbar";
+// 🔑 Import the CartSidebar component
+import CartSidebar from "./components/CartSidebar";
 import Home from "./pages/Home";
 import Order from "./pages/Order";
 import ContactPage from "./pages/ContactPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard"; // User Profile/Account Dashboard
-import AdminDashboard from "./pages/Admin/AdminDashboard"; // Admin Area
-import ProtectedRoute from "./components/ProtectedRoute"; // 🔑 Use ONE ProtectedRoute component
+import Dashboard from "./pages/Dashboard";
+import AdminDashboard from "./pages/Admin/AdminDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
+import CakePortfolio from "./pages/CakePortfolio";
+import CheckoutPage from "./pages/CheckoutPage";
 
 import "./App.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import CakePortfolio from "./pages/CakePortfolio";
 
 function App() {
+  // 🔑 STEP 1: State to control the visibility of the cart sidebar
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // 🔑 STEP 2: Function to toggle the cart
+  const toggleCart = () => setIsCartOpen(!isCartOpen);
+
+  // A flowchart showing the data flow for the Cart Sidebar:
+
   return (
     <ThemeProvider>
       <AuthProvider>
         <MessageProvider>
-          <Router>
-            <div className="App">
-              <Navbar />
-              <Routes>
-                {/* -------------------- 1. PUBLIC ROUTES -------------------- */}
-                <Route path="/" element={<Home />} />
-                <Route path="/order" element={<Order />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/cakes" element={<CakePortfolio />} />
+          <CartProvider>
+            <Router>
+              <div className="App">
+                {/* 🔑 STEP 3: Pass the toggle function to the Navbar */}
+                <Navbar onCartClick={toggleCart} />
 
-                {/* -------------------- 2. PROTECTED ROUTES -------------------- */}
-                {/* 🔑 User Dashboard/Profile Route */}
-                {/* Define the wrapper component on the parent Route element */}
-                <Route element={<ProtectedRoute />}>
-                  {/* The Dashboard page is rendered by the <Outlet /> inside ProtectedRoute */}
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  {/* Add other user-only routes here (e.g., /profile, /orders) */}
-                </Route>
+                {/* 🔑 STEP 4: Render the CartSidebar component */}
+                <CartSidebar
+                  isOpen={isCartOpen}
+                  onClose={() => setIsCartOpen(false)} // Pass a function to close it from within the sidebar
+                />
 
-                {/* 🔑 Admin Dashboard Route */}
-                {/* Define the wrapper component on the parent Route element and pass the flag */}
-                {/* This requires ProtectedRoute to accept the 'adminOnly' prop. */}
-                <Route element={<ProtectedRoute adminOnly={true} />}>
-                  {/* The AdminDashboard is rendered by the <Outlet /> inside ProtectedRoute */}
-                  <Route path="/admin" element={<AdminDashboard />} />
-                  {/* Add other admin sub-routes here (e.g., /admin/users, /admin/cakes) */}
-                </Route>
+                <Routes>
+                  {/* -------------------- 1. PUBLIC ROUTES -------------------- */}
+                  <Route path="/" element={<Home />} />
+                  <Route path="/order" element={<Order />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/cakes" element={<CakePortfolio />} />
+                  <Route path="/checkout" element={<CheckoutPage />} />
 
-                {/* -------------------- 3. FALLBACK ROUTE -------------------- */}
-                <Route path="*" element={<div>404 Not Found</div>} />
-              </Routes>
+                  {/* -------------------- 2. PROTECTED ROUTES -------------------- */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                  </Route>
 
-              {/* Toast Container - Consistent placement is good */}
-              <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                pauseOnHover
-                draggable
-                theme="colored"
-              />
-            </div>
-          </Router>
+                  {/* 🔑 Admin Dashboard Route */}
+                  <Route element={<ProtectedRoute adminOnly={true} />}>
+                    <Route path="/admin" element={<AdminDashboard />} />
+                  </Route>
+
+                  {/* -------------------- 3. FALLBACK ROUTE -------------------- */}
+                  <Route path="*" element={<div>404 Not Found</div>} />
+                </Routes>
+
+                <ToastContainer
+                  position="top-right"
+                  autoClose={3000}
+                  hideProgressBar={false}
+                  newestOnTop={false}
+                  closeOnClick
+                  pauseOnHover
+                  draggable
+                  theme="colored"
+                />
+              </div>
+            </Router>
+          </CartProvider>
         </MessageProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -109,12 +109,13 @@
 
 // export default Navbar;
 
-// frontend/src/components/Navbar.jsx - REVISED STRUCTURE
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { FaShoppingCart, FaUser, FaSearch } from "react-icons/fa"; // You will need to install react-icons if you haven't
+// 🔑 Import the new cart hook
+import { useCart } from "../contexts/CartContext";
+import { FaShoppingCart, FaUser, FaSearch } from "react-icons/fa";
 
 import "./Navbar.css";
 
@@ -122,6 +123,9 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { currentUser, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
+
+  // 🔑 Get the cart item count from the context
+  const { cartItemCount } = useCart();
 
   // ... (toggleMenu and handleLogout functions remain the same)
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
@@ -132,15 +136,12 @@ const Navbar = () => {
 
   return (
     <nav className="navbar-new">
-      {" "}
-      {/* New class for styling */}
+      {/* -------------------- Nav Logo Area -------------------- */}
       <div className="nav-logo-area">
         <Link to="/" className="nav-logo">
-          {/* Use an actual logo/icon here, like in the example */}
           <span className="logo-icon">🍰</span> Velvet Bloom
         </Link>
 
-        {/* Main navigation links moved near the logo, like the smaller links in the CakeHub example */}
         <div className="nav-main-links desktop-only">
           <Link to="/" className="nav-link">
             Home
@@ -153,7 +154,8 @@ const Navbar = () => {
           </Link>
         </div>
       </div>
-      {/* --- Middle Section: Search Bar --- */}
+
+      {/* -------------------- Middle Section: Search Bar -------------------- */}
       <div className="nav-search-bar">
         <input
           type="text"
@@ -164,7 +166,8 @@ const Navbar = () => {
           <FaSearch />
         </button>
       </div>
-      {/* --- Right Section: Icons and Auth --- */}
+
+      {/* -------------------- Right Section: Icons and Auth -------------------- */}
       <div className="nav-utility-area">
         <button
           className="theme-toggle"
@@ -174,15 +177,33 @@ const Navbar = () => {
           {isDarkMode ? "☀️" : "🌙"}
         </button>
 
-        {/* Cart Icon */}
-        <Link to="/cart" className="utility-icon" aria-label="Shopping Cart">
+        {/* 🔑 Cart Icon - Now dynamically displays the count */}
+        {/* Note: I'm keeping the link to "/cart" for now, but you might change this
+               to open a modal/sidebar instead of navigating to a dedicated page. */}
+        <Link
+          to="/checkout"
+          className="utility-icon cart-icon-wrapper"
+          aria-label="Shopping Cart"
+        >
           <FaShoppingCart />
-          <span className="cart-count">3</span> {/* Example count */}
+          {/* 🔑 Dynamic Cart Count */}
+          {cartItemCount > 0 && (
+            <span className="cart-count">{cartItemCount}</span>
+          )}
         </Link>
 
         {/* User/Auth Icon */}
         {currentUser ? (
           <div className="auth-menu">
+            {currentUser.is_admin && (
+              <Link
+                to="/admin"
+                className="utility-icon user-dashboard"
+                aria-label="Admin Dashboard"
+              >
+                <FaUser />
+              </Link>
+            )}
             <Link
               to="/dashboard"
               className="utility-icon user-dashboard"
@@ -200,6 +221,7 @@ const Navbar = () => {
           </Link>
         )}
       </div>
+
       {/* Mobile Menu (Keep your existing toggle logic for mobile responsiveness) */}
       <div className="mobile-menu-toggle" onClick={toggleMenu}>
         {/* Hamburger icon here */}
