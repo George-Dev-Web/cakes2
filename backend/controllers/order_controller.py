@@ -1,205 +1,276 @@
 # backend/controllers/order_controller.py
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from extensions import db
-from models.order import Order
-from models.cake import Cake
-from marshmallow import Schema, fields, validate, EXCLUDE
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from datetime import datetime
+import json
+
+from extensions import db
+from models.order import Order, OrderItem, OrderItemImage
+from models.cart import Cart, CartItem
+from models.User import User
+from schemas.order_schema import (
+    OrderSchema, OrderCreateSchema, OrderUpdateStatusSchema
+)
+from utils.validators import validate_request
+from utils.exceptions import (
+    ResourceNotFoundError, ValidationError, DatabaseError, AuthorizationError
+)
 
 order_bp = Blueprint('orders', __name__)
-
-# Marshmallow schema for serialization
-class OrderSchema(Schema):
-    class Meta:
-        unknown = EXCLUDE
-    
-    id = fields.Int(dump_only=True)
-    cake_id = fields.Int(required=True)
-    quantity = fields.Int(required=True, validate=validate.Range(min=1))
-    customer_name = fields.Str(required=True)
-    customer_email = fields.Str(required=True, validate=validate.Email())
-    customer_phone = fields.Str(required=True)
-    delivery_date = fields.Date(required=True)
-    special_requests = fields.Str(allow_none=True)
-    total_price = fields.Float(dump_only=True)
-    status = fields.Str(dump_only=True)
-    created_at = fields.DateTime(dump_only=True)
-    cake_name = fields.Str(dump_only=True, attribute="cake.name")
 
 order_schema = OrderSchema()
 orders_schema = OrderSchema(many=True)
 
+
+def generate_order_number():
+    """Generate unique order number."""
+    date_str = datetime.now().strftime('%Y%m%d')
+    count = Order.query.filter(
+        Order.order_number.like(f'ORD-{date_str}-%')
+    ).count()
+    return f'ORD-{date_str}-{count + 1:03d}'
+
+
 @order_bp.route('/orders', methods=['POST'])
-@jwt_required(optional=True)
+@validate_request(OrderCreateSchema)
 def create_order():
+    """
+    Create order from cart.
+    Works for both logged-in and guest users.
+    """
     try:
-        data = request.get_json()
-        
-        # Get user ID if authenticated (convert from string to int)
+        data = request.validated_data
         user_id = None
+        
+        # Check if user is logged in
         try:
-            current_identity = get_jwt_identity()
-            if current_identity:
-                user_id = int(current_identity)
-        except (ValueError, TypeError):
-            user_id = None
+            verify_jwt_in_request(optional=True)
+            user_id = get_jwt_identity()
+        except:
+            pass
         
-        # Validate required fields
-        required_fields = ['cake_id', 'quantity', 'customer_name', 'customer_email', 
-                          'customer_phone', 'delivery_date']
-        for field in required_fields:
-            if field not in data or not data[field]:
-                return jsonify({'message': f'Missing required field: {field}'}), 422
+        # Get cart
+        cart = Cart.query.get(data['cart_id'])
+        if not cart or cart.get_item_count() == 0:
+            raise ValidationError("Cart is empty")
         
-        # Parse delivery date
-        try:
-            delivery_date = datetime.strptime(data['delivery_date'], '%Y-%m-%d').date()
-        except ValueError:
-            return jsonify({'message': 'Invalid date format. Use YYYY-MM-DD'}), 422
+        # Calculate totals
+        subtotal = cart.get_total()
+        delivery_fee = 5.0  # Could be calculated based on location
+        tax = subtotal * 0.16  # 16% VAT for Kenya
+        total = subtotal + delivery_fee + tax
         
-        # Check if delivery date is in the future
-        if delivery_date <= datetime.now().date():
-            return jsonify({'message': 'Delivery date must be in the future'}), 422
-        
-        # Get cake and calculate total price
-        cake = Cake.query.get(data['cake_id'])
-        if not cake:
-            return jsonify({'message': 'Cake not found'}), 404
-        
-        total_price = cake.price * data['quantity']
-        
-        # Create new order
-        new_order = Order(
+        # Create order
+        order = Order(
+            order_number=generate_order_number(),
             user_id=user_id,
-            cake_id=data['cake_id'],
-            quantity=data['quantity'],
             customer_name=data['customer_name'],
             customer_email=data['customer_email'],
             customer_phone=data['customer_phone'],
-            delivery_date=delivery_date,
-            special_requests=data.get('special_requests', ''),
-            total_price=total_price
+            delivery_address=data['delivery_address'],
+            delivery_date=data['delivery_date'],
+            delivery_time=data.get('delivery_time'),
+            payment_method=data['payment_method'],
+            special_instructions=data.get('special_instructions'),
+            subtotal=subtotal,
+            delivery_fee=delivery_fee,
+            tax=tax,
+            total_price=total
         )
         
-        db.session.add(new_order)
+        db.session.add(order)
+        db.session.flush()  # Get order.id
+        
+        # Convert cart items to order items
+        for cart_item in cart.items:
+            order_item = OrderItem(
+                order_id=order.id,
+                cake_id=cart_item.cake_id,
+                quantity=cart_item.quantity,
+                cake_shape=cart_item.cake_shape,
+                cake_size=cart_item.cake_size,
+                cake_layers=cart_item.cake_layers,
+                flavor=cart_item.flavor,
+                filling=cart_item.filling,
+                frosting=cart_item.frosting,
+                is_gluten_free=cart_item.is_gluten_free,
+                is_vegan=cart_item.is_vegan,
+                is_sugar_free=cart_item.is_sugar_free,
+                is_dairy_free=cart_item.is_dairy_free,
+                toppings=cart_item.toppings,
+                decorations=cart_item.decorations,
+                message_on_cake=cart_item.message_on_cake,
+                base_price=cart_item.base_price,
+                customization_price=cart_item.customization_price,
+                unit_price=cart_item.base_price + cart_item.customization_price,
+                subtotal=cart_item.get_subtotal(),
+                notes=cart_item.notes
+            )
+            db.session.add(order_item)
+            db.session.flush()
+            
+            # Copy reference images
+            for img in cart_item.reference_images:
+                order_img = OrderItemImage(
+                    order_item_id=order_item.id,
+                    image_url=img.image_url,
+                    image_filename=img.image_filename,
+                    description=img.description
+                )
+                db.session.add(order_img)
+        
+        # Clear cart
+        CartItem.query.filter_by(cart_id=cart.id).delete()
+        
         db.session.commit()
         
-        # Return the created order with cake name
-        order_data = {
-            'id': new_order.id,
-            'cake_id': new_order.cake_id,
-            'quantity': new_order.quantity,
-            'customer_name': new_order.customer_name,
-            'customer_email': new_order.customer_email,
-            'customer_phone': new_order.customer_phone,
-            'delivery_date': new_order.delivery_date.isoformat(),
-            'special_requests': new_order.special_requests,
-            'total_price': new_order.total_price,
-            'status': new_order.status,
-            'created_at': new_order.created_at.isoformat() if new_order.created_at else None,
-            'cake_name': cake.name
-        }
+        current_app.logger.info(
+            f"Order created: {order.order_number}",
+            extra={'order_id': order.id, 'total': order.total_price}
+        )
         
-        return jsonify(order_data), 201
+        # TODO: Send email confirmation (will add below)
         
+        return jsonify(order_schema.dump(order)), 201
+        
+    except ValidationError:
+        raise
     except Exception as e:
+        current_app.logger.error(f"Error creating order: {e}", exc_info=True)
         db.session.rollback()
-        print(f"Error creating order: {str(e)}")
-        return jsonify({'message': 'Internal server error'}), 500
+        raise DatabaseError("Failed to create order")
 
-@order_bp.route('/orders/my-orders', methods=['GET'])
-@jwt_required()
-def get_user_orders():
+
+@order_bp.route('/orders', methods=['GET'])
+@jwt_required(optional=True)
+def get_orders():
+    """
+    Get user's orders (if logged in) or all orders (if admin).
+    """
     try:
         user_id = get_jwt_identity()
-        # Convert string identity back to integer
-        user_id_int = int(user_id)
         
-        orders = Order.query.filter_by(user_id=user_id_int).order_by(Order.created_at.desc()).all()
+        if not user_id:
+            raise ValidationError("Please log in to view orders")
         
-        # Manually serialize the orders to avoid schema issues
-        orders_data = []
-        for order in orders:
-            orders_data.append({
-                'id': order.id,
-                'cake_id': order.cake_id,
-                'quantity': order.quantity,
-                'customer_name': order.customer_name,
-                'customer_email': order.customer_email,
-                'customer_phone': order.customer_phone,
-                'delivery_date': order.delivery_date.isoformat() if order.delivery_date else None,
-                'special_requests': order.special_requests,
-                'total_price': order.total_price,
-                'status': order.status,
-                'created_at': order.created_at.isoformat() if order.created_at else None,
-                'cake_name': order.cake.name if order.cake else 'Unknown Cake'
-            })
+        user = User.query.get(user_id)
         
-        return jsonify(orders_data)
+        if user.is_admin:
+            # Admin sees all orders
+            orders = Order.query.order_by(Order.created_at.desc()).all()
+        else:
+            # User sees only their orders
+            orders = Order.query.filter_by(user_id=user_id).order_by(
+                Order.created_at.desc()
+            ).all()
         
-    except ValueError:
-        return jsonify({'message': 'Invalid user identity'}), 422
+        return jsonify(orders_schema.dump(orders)), 200
+        
     except Exception as e:
-        print(f"Error fetching user orders: {str(e)}")
-        return jsonify({'message': 'Internal server error'}), 500
+        current_app.logger.error(f"Error retrieving orders: {e}", exc_info=True)
+        raise DatabaseError("Failed to retrieve orders")
 
-@order_bp.route('/orders/<int:id>', methods=['GET'])
-@jwt_required()
-def get_order(id):
+
+@order_bp.route('/orders/<int:order_id>', methods=['GET'])
+def get_order(order_id):
+    """
+    Get specific order details.
+    """
     try:
-        order = Order.query.get_or_404(id)
-        user_id = get_jwt_identity()
+        order = Order.query.get(order_id)
         
-        # Check if user owns this order
-        if order.user_id != int(user_id):
-            return jsonify({'message': 'Access denied'}), 403
+        if not order:
+            raise ResourceNotFoundError("Order not found")
         
-        # Manually serialize the order
-        order_data = {
-            'id': order.id,
-            'cake_id': order.cake_id,
-            'quantity': order.quantity,
-            'customer_name': order.customer_name,
-            'customer_email': order.customer_email,
-            'customer_phone': order.customer_phone,
-            'delivery_date': order.delivery_date.isoformat() if order.delivery_date else None,
-            'special_requests': order.special_requests,
-            'total_price': order.total_price,
+        # Check authorization
+        try:
+            verify_jwt_in_request(optional=True)
+            user_id = get_jwt_identity()
+            
+            if user_id:
+                user = User.query.get(user_id)
+                if not user.is_admin and order.user_id != user_id:
+                    raise AuthorizationError("Unauthorized to view this order")
+        except:
+            # Guest user - allow viewing (they have order number from email)
+            pass
+        
+        return jsonify(order_schema.dump(order)), 200
+        
+    except (ResourceNotFoundError, AuthorizationError):
+        raise
+    except Exception as e:
+        current_app.logger.error(f"Error retrieving order: {e}", exc_info=True)
+        raise DatabaseError("Failed to retrieve order")
+
+
+@order_bp.route('/orders/track/<order_number>', methods=['GET'])
+def track_order(order_number):
+    """
+    Track order by order number (for guest users).
+    """
+    try:
+        order = Order.query.filter_by(order_number=order_number).first()
+        
+        if not order:
+            raise ResourceNotFoundError("Order not found")
+        
+        return jsonify({
+            'order_number': order.order_number,
             'status': order.status,
-            'created_at': order.created_at.isoformat() if order.created_at else None,
-            'cake_name': order.cake.name if order.cake else 'Unknown Cake'
-        }
+            'customer_name': order.customer_name,
+            'delivery_date': order.delivery_date.isoformat() if order.delivery_date else None,
+            'total_price': order.total_price,
+            'created_at': order.created_at.isoformat() if order.created_at else None
+        }), 200
         
-        return jsonify(order_data)
-        
+    except ResourceNotFoundError:
+        raise
     except Exception as e:
-        print(f"Error fetching order: {str(e)}")
-        return jsonify({'message': 'Internal server error'}), 500
-    
-    # backend/controllers/order_controller.py - Add this endpoint
-@order_bp.route('/orders/<int:id>', methods=['DELETE'])
+        current_app.logger.error(f"Error tracking order: {e}", exc_info=True)
+        raise DatabaseError("Failed to track order")
+
+
+@order_bp.route('/orders/<int:order_id>/status', methods=['PUT'])
 @jwt_required()
-def cancel_order(id):
+@validate_request(OrderUpdateStatusSchema)
+def update_order_status(order_id):
+    """
+    Update order status (admin only).
+    """
     try:
-        order = Order.query.get_or_404(id)
         user_id = get_jwt_identity()
+        user = User.query.get(user_id)
         
-        # Check if user owns this order
-        if order.user_id != int(user_id):
-            return jsonify({'message': 'Access denied'}), 403
+        if not user or not user.is_admin:
+            raise AuthorizationError("Admin access required")
         
-        # Only allow cancelling pending or confirmed orders
-        if order.status not in ['pending', 'confirmed']:
-            return jsonify({'message': 'Cannot cancel order in current status'}), 400
+        order = Order.query.get(order_id)
+        if not order:
+            raise ResourceNotFoundError("Order not found")
         
-        # Update order status to cancelled
-        order.status = 'cancelled'
+        data = request.validated_data
+        order.status = data['status']
+        order.admin_notes = data.get('admin_notes', order.admin_notes)
+        
+        if data['status'] == 'confirmed' and not order.confirmed_at:
+            order.confirmed_at = datetime.utcnow()
+        elif data['status'] == 'delivered' and not order.completed_at:
+            order.completed_at = datetime.utcnow()
+        
         db.session.commit()
         
-        return jsonify({'message': 'Order cancelled successfully'})
+        current_app.logger.info(
+            f"Order status updated: {order_id} -> {data['status']}"
+        )
         
+        # TODO: Send status update email to customer
+        
+        return jsonify(order_schema.dump(order)), 200
+        
+    except (ResourceNotFoundError, AuthorizationError, ValidationError):
+        raise
     except Exception as e:
+        current_app.logger.error(f"Error updating order status: {e}", exc_info=True)
         db.session.rollback()
-        print(f"Error cancelling order: {str(e)}")
-        return jsonify({'message': 'Internal server error'}), 500
+        raise DatabaseError("Failed to update order status")
