@@ -1,176 +1,211 @@
-// import React, { useEffect, useState } from "react";
-// import { useTheme } from "../contexts/ThemeContext";
-// import CakeCard from "../components/CakeCard";
-// import { fetchAdminCakes } from "../utils/api"; // <-- using your existing API util
-// import "./CakePortfolio.css";
-
-// const CakePortfolio = () => {
-//   const { isDarkMode } = useTheme();
-//   const [cakes, setCakes] = useState([]);
-//   const [filteredCakes, setFilteredCakes] = useState([]);
-//   const [search, setSearch] = useState("");
-//   const [category, setCategory] = useState("all");
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState("");
-
-//   useEffect(() => {
-//     const loadCakes = async () => {
-//       try {
-//         setLoading(true);
-//         const data = await fetchAdminCakes();
-//         setCakes(data);
-//         setFilteredCakes(data);
-//       } catch (err) {
-//         console.error("Failed to load cakes:", err);
-//         setError("Could not fetch cakes. Please try again later.");
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     loadCakes();
-//   }, []);
-
-//   useEffect(() => {
-//     let results = cakes.filter((cake) =>
-//       cake.name.toLowerCase().includes(search.toLowerCase())
-//     );
-
-//     if (category !== "all") {
-//       results = results.filter(
-//         (cake) => cake.category?.toLowerCase() === category.toLowerCase()
-//       );
-//     }
-
-//     setFilteredCakes(results);
-//   }, [search, category, cakes]);
-
-//   const handleCardClick = (cake) => {
-//     alert(`Clicked on ${cake.name}`); // you can replace this with a modal later
-//   };
-
-//   return (
-//     <div className={`cake-portfolio ${isDarkMode ? "dark" : ""}`}>
-//       <header className="portfolio-header">
-//         <h2>Our Cake Collection</h2>
-//         <p>Explore a world of sweetness crafted just for you.</p>
-//       </header>
-
-//       <div className="filters">
-//         <input
-//           type="text"
-//           placeholder="Search cakes..."
-//           value={search}
-//           onChange={(e) => setSearch(e.target.value)}
-//           className="search-input"
-//         />
-
-//         <select
-//           value={category}
-//           onChange={(e) => setCategory(e.target.value)}
-//           className="filter-select"
-//         >
-//           <option value="all">All</option>
-//           <option value="chocolate">Chocolate</option>
-//           <option value="vanilla">Vanilla</option>
-//           <option value="red velvet">Red Velvet</option>
-//           <option value="fruit">Fruit</option>
-//         </select>
-//       </div>
-
-//       {loading ? (
-//         <p className="loading">Loading cakes...</p>
-//       ) : error ? (
-//         <p className="error">{error}</p>
-//       ) : filteredCakes.length > 0 ? (
-//         <div className="cake-grid">
-//           {filteredCakes.map((cake) => (
-//             <CakeCard
-//               key={cake.id}
-//               cake={cake}
-//               isDarkMode={isDarkMode}
-//               onClick={handleCardClick}
-//             />
-//           ))}
-//         </div>
-//       ) : (
-//         <p className="no-results">No cakes found.</p>
-//       )}
-//     </div>
-//   );
-// };
-
-// export default CakePortfolio;
-
-// frontend/src/pages/CakePortfolio.jsx (REVISED)
-
-import React, { useEffect, useState } from "react";
-import { useTheme } from "../contexts/ThemeContext";
-import CakeCard from "../components/CakeCard";
-import { fetchAdminCakes } from "../utils/api";
-import { useCart } from "../contexts/CartContext"; // 🔑 Import useCart
-import { toast } from "react-toastify"; // 🔑 Import toast
-
-import "./CakePortfolio.css";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { fetchPortfolioCakes } from '../utils/api';
+import { toast } from 'react-toastify';
+import './CakePortfolio.css';
 
 const CakePortfolio = () => {
-  const { isDarkMode } = useTheme();
-  const { addToCart } = useCart(); // 🔑 Destructure addToCart
-  // ... (existing state and useEffects remain unchanged) ...
+  const navigate = useNavigate();
   const [cakes, setCakes] = useState([]);
-  const [filteredCakes, setFilteredCakes] = useState([]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [pagination, setPagination] = useState({ page: 1, perPage: 12, total: 0 });
 
-  // ... (existing useEffects for loading and filtering remain) ...
+  const categories = ['All', 'Birthday', 'Wedding', 'Anniversary', 'Corporate', 'Custom', 'Other'];
 
-  // 🔑 NEW: Quick Add to Cart Handler
-  const handleQuickAddToCart = (cake) => {
-    const itemToAdd = {
-      // Use the API data fields directly
-      cake_id: cake.id,
-      name: cake.name,
-      base_price: cake.price, // Assuming cake.price is the base price
-      quantity: 1,
-      customizations: [],
-    };
+  useEffect(() => {
+    loadCakes();
+  }, [selectedCategory, pagination.page]);
 
-    addToCart(itemToAdd);
-    toast.success(`${cake.name} added to your basket.`);
+  const loadCakes = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: pagination.page,
+        per_page: pagination.perPage,
+      };
+      
+      if (selectedCategory && selectedCategory !== 'All') {
+        params.category = selectedCategory;
+      }
+
+      const response = await fetchPortfolioCakes(params);
+      setCakes(response.cakes || []);
+      
+      if (response.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          total: response.pagination.total,
+          pages: response.pagination.pages,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading portfolio:', error);
+      toast.error('Failed to load cakes portfolio');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className={`cake-portfolio ${isDarkMode ? "dark" : ""}`}>
-      {/* ... (header and filters remain unchanged) ... */}
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
 
-      {loading ? (
-        <p className="loading">Loading cakes...</p>
-      ) : error ? (
-        <p className="error">{error}</p>
-      ) : filteredCakes.length > 0 ? (
-        <div className="cake-grid">
-          {filteredCakes.map((cake) => (
-            <CakeCard
-              key={cake.id}
-              cake={cake}
-              isDarkMode={isDarkMode}
-              // 🔑 Pass the quick add handler down to CakeCard
-              onQuickAdd={() => handleQuickAddToCart(cake)}
-              // Note: you may need to update CakeCard to accept and use onQuickAdd
-            />
+  const handleCakeClick = (cakeId) => {
+    navigate(`/portfolio/${cakeId}`);
+  };
+
+  const handleOrderCustom = (cake) => {
+    // Navigate to order page with pre-selected cake template
+    navigate('/order', { state: { templateCake: cake } });
+  };
+
+  const formatPrice = (price) => `KSh ${parseFloat(price).toLocaleString('en-KE')}`;
+
+  return (
+    <div className="portfolio-page">
+      <div className="container">
+        {/* Header */}
+        <div className="portfolio-header">
+          <h1>Our Cake Portfolio</h1>
+          <p>Browse our collection of beautiful pre-made cakes or customize your own!</p>
+        </div>
+
+        {/* Category Filter */}
+        <div className="category-filter">
+          {categories.map(category => (
+            <button
+              key={category}
+              className={`category-btn ${selectedCategory === category ? 'active' : ''}`}
+              onClick={() => handleCategoryChange(category)}
+            >
+              {category}
+            </button>
           ))}
         </div>
-      ) : (
-        <p className="no-results">No cakes found.</p>
-      )}
+
+        {/* Loading State */}
+        {loading ? (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Loading delicious cakes...</p>
+          </div>
+        ) : (
+          <>
+            {/* Cakes Grid */}
+            {cakes.length > 0 ? (
+              <>
+                <div className="cakes-grid">
+                  {cakes.map(cake => (
+                    <div key={cake.id} className="cake-card">
+                      {cake.is_featured && (
+                        <div className="featured-badge">⭐ Featured</div>
+                      )}
+                      
+                      <div 
+                        className="cake-image"
+                        onClick={() => handleCakeClick(cake.id)}
+                        style={{
+                          backgroundImage: `url(${
+                            cake.primary_image_url || 'https://placehold.co/400x300/ff6b9d/ffffff?text=Cake'
+                          })`,
+                        }}
+                      >
+                        {!cake.is_available && (
+                          <div className="unavailable-overlay">Currently Unavailable</div>
+                        )}
+                      </div>
+
+                      <div className="cake-details">
+                        <h3>{cake.name}</h3>
+                        <p className="cake-description">{cake.description}</p>
+                        
+                        <div className="cake-specs">
+                          {cake.default_shape && (
+                            <span className="spec">🔷 {cake.default_shape}</span>
+                          )}
+                          {cake.default_size && (
+                            <span className="spec">📏 {cake.default_size}</span>
+                          )}
+                          {cake.default_flavor && (
+                            <span className="spec">🍰 {cake.default_flavor}</span>
+                          )}
+                        </div>
+
+                        <div className="cake-tags">
+                          {cake.can_be_vegan && (
+                            <span className="tag tag-vegan">🌱 Vegan Option</span>
+                          )}
+                          {cake.can_be_gluten_free && (
+                            <span className="tag tag-gf">🌾 Gluten-Free Option</span>
+                          )}
+                        </div>
+
+                        <div className="cake-footer">
+                          <p className="price">Starting at {formatPrice(cake.base_price)}</p>
+                          <div className="action-buttons">
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => handleCakeClick(cake.id)}
+                            >
+                              View Details
+                            </button>
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => handleOrderCustom(cake)}
+                              disabled={!cake.is_available}
+                            >
+                              Customize & Order
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {pagination.pages > 1 && (
+                  <div className="pagination">
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                      disabled={pagination.page === 1}
+                      className="btn btn-pagination"
+                    >
+                      « Previous
+                    </button>
+                    
+                    <span className="page-info">
+                      Page {pagination.page} of {pagination.pages}
+                    </span>
+                    
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                      disabled={pagination.page === pagination.pages}
+                      className="btn btn-pagination"
+                    >
+                      Next »
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>😔 No cakes found in this category</p>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => navigate('/order')}
+                >
+                  Design Your Own Custom Cake
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
 
 export default CakePortfolio;
-
-// NOTE: You must update your CakeCard component to render a button that
-// calls props.onQuickAdd(cake) and possibly remove the props.onClick logic
-// if the intention is to only add to cart or navigate to order.
