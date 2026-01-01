@@ -1,58 +1,90 @@
-# # backend/config.py
-# import os
-# from datetime import timedelta
-
-# class Config:
-#     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-for-cake-website'
-#     POSTGRES_URI = 'postgresql://postgres:911Gt3RS@localhost/cake_db'
-#     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or POSTGRES_URI
-#     SQLALCHEMY_TRACK_MODIFICATIONS = False
-#     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key'
-#     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
-
-
-
 # backend/config.py
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-for-cake-website'
-    POSTGRES_URI = 'postgresql://postgres:911Gt3RS@localhost/cake_db'
+    """Base configuration class with environment-based settings."""
+    
+    # Flask Settings
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError("SECRET_KEY environment variable is not set!")
+    
+    FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
+    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     
     # Database Settings
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or POSTGRES_URI
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    if not SQLALCHEMY_DATABASE_URI:
+        raise ValueError("DATABASE_URL environment variable is not set!")
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ECHO = DEBUG  # Log SQL queries in debug mode
+    
+    # Connection Pool Settings
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+        'max_overflow': 20
+    }
     
     # JWT Settings
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key'
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+    if not JWT_SECRET_KEY:
+        raise ValueError("JWT_SECRET_KEY environment variable is not set!")
     
-    # --- START OF NEW COOKIE CONFIGURATION ---
+    JWT_TOKEN_LOCATION = ["cookies"]
+    JWT_ACCESS_COOKIE_NAME = "access_token_cookie"
+    JWT_COOKIE_HTTPONLY = True
+    JWT_COOKIE_SECURE = FLASK_ENV == 'production'
+    JWT_COOKIE_SAMESITE = "Lax"
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     
-    # 1. Instructs Flask-JWT-Extended to look for the token in cookies, not the Authorization header
-    # Must be a list, even if only 'cookies' is used.
-    JWT_TOKEN_LOCATION = ["cookies"] 
+    # CORS Settings
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:5173').split(',')
+    
+    # Logging Settings
+    LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+    LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
+    
+    # Email Settings (for future use)
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@cakes2.com')
 
-    # 2. Defines the name of the cookie containing the access token
-    # This name will appear in the user's browser storage.
-    JWT_ACCESS_COOKIE_NAME = "access_token_cookie" 
-    
-    # 3. THE CRITICAL SECURITY SETTING: Prevents client-side JavaScript from accessing the cookie.
-    JWT_COOKIE_HTTPONLY = True 
-    
-    # 4. REQUIRED FOR PRODUCTION: Ensures the cookie is only sent over HTTPS.
-    # Set to False only if you are developing locally without HTTPS (like on localhost).
-    JWT_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production' 
 
-    # 5. Helps prevent Cross-Site Request Forgery (CSRF). 
-    # 'Lax' is a secure default that works well with most web apps.
-    JWT_COOKIE_SAMESITE = "Lax" 
+class DevelopmentConfig(Config):
+    """Development-specific configuration."""
+    DEBUG = True
+    TESTING = False
 
-    # 6. We no longer need to set a long expiration for the JWT itself. 
-    # For security, you often want the token to expire quickly (e.g., 15 minutes) 
-    # and use a *Refresh Token* (in a separate, long-lived cookie) to get a new one.
-    # If not using refresh tokens, keep your original 24 hours.
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24) 
-    
-    # --- END OF NEW COOKIE CONFIGURATION ---
+
+class TestingConfig(Config):
+    """Testing-specific configuration."""
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL', 'sqlite:///test.db')
+    JWT_COOKIE_SECURE = False  # Allow testing without HTTPS
+
+
+class ProductionConfig(Config):
+    """Production-specific configuration."""
+    DEBUG = False
+    TESTING = False
+    JWT_COOKIE_SECURE = True  # Enforce HTTPS in production
+
+
+# Configuration dictionary
+config = {
+    'development': DevelopmentConfig,
+    'testing': TestingConfig,
+    'production': ProductionConfig,
+    'default': DevelopmentConfig
+}
