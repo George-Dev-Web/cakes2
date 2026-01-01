@@ -15,6 +15,10 @@ from utils.validators import validate_request
 from utils.exceptions import (
     ResourceNotFoundError, ValidationError, DatabaseError, AuthorizationError
 )
+from utils.email_service import (
+    send_order_confirmation_email,
+    send_order_status_update_email
+)
 
 order_bp = Blueprint('orders', __name__)
 
@@ -56,7 +60,7 @@ def create_order():
         
         # Calculate totals
         subtotal = cart.get_total()
-        delivery_fee = 5.0  # Could be calculated based on location
+        delivery_fee = 500.0  # KSh 500 standard delivery
         tax = subtotal * 0.16  # 16% VAT for Kenya
         total = subtotal + delivery_fee + tax
         
@@ -129,7 +133,16 @@ def create_order():
             extra={'order_id': order.id, 'total': order.total_price}
         )
         
-        # TODO: Send email confirmation (will add below)
+        # Send order confirmation email
+        try:
+            send_order_confirmation_email(order)
+            current_app.logger.info(f"Confirmation email sent for order {order.order_number}")
+        except Exception as email_error:
+            current_app.logger.error(
+                f"Failed to send confirmation email: {email_error}",
+                exc_info=True
+            )
+            # Don't fail the order if email fails
         
         return jsonify(order_schema.dump(order)), 201
         
@@ -250,6 +263,7 @@ def update_order_status(order_id):
             raise ResourceNotFoundError("Order not found")
         
         data = request.validated_data
+        old_status = order.status
         order.status = data['status']
         order.admin_notes = data.get('admin_notes', order.admin_notes)
         
@@ -264,7 +278,19 @@ def update_order_status(order_id):
             f"Order status updated: {order_id} -> {data['status']}"
         )
         
-        # TODO: Send status update email to customer
+        # Send status update email to customer
+        if old_status != data['status']:
+            try:
+                send_order_status_update_email(order)
+                current_app.logger.info(
+                    f"Status update email sent for order {order.order_number}"
+                )
+            except Exception as email_error:
+                current_app.logger.error(
+                    f"Failed to send status update email: {email_error}",
+                    exc_info=True
+                )
+                # Don't fail the status update if email fails
         
         return jsonify(order_schema.dump(order)), 200
         
