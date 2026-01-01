@@ -16,6 +16,7 @@ from utils.validators import validate_request
 from utils.exceptions import (
     ResourceNotFoundError, ValidationError, DatabaseError
 )
+from utils.image_upload import upload_image  # Import image upload utility
 
 cart_bp = Blueprint('cart', __name__)
 
@@ -92,26 +93,6 @@ def get_cart():
 def add_to_cart():
     """
     Add an item to cart with full customization.
-    
-    Request Body:
-        {
-            "cake_id": 1,  // Optional - for pre-made cakes
-            "quantity": 2,
-            "cake_shape": "Round",
-            "cake_size": "Medium",
-            "cake_layers": 2,
-            "flavor": "Chocolate",
-            "filling": "Vanilla Cream",
-            "frosting": "Chocolate Ganache",
-            "is_gluten_free": false,
-            "is_vegan": false,
-            "toppings": [1, 3, 5],  // Topping IDs
-            "message_on_cake": "Happy Birthday!",
-            "notes": "Please make it extra special"
-        }
-    
-    Returns:
-        JSON: Updated cart
     """
     try:
         cart = get_or_create_cart()
@@ -130,12 +111,12 @@ def add_to_cart():
         else:
             # Price based on size for custom cakes
             size_prices = {
-                'Small': 20.0,
-                'Medium': 35.0,
-                'Large': 50.0,
-                'XL': 75.0
+                'Small': 2000.0,
+                'Medium': 3500.0,
+                'Large': 5000.0,
+                'XL': 7500.0
             }
-            base_price = size_prices.get(data.get('cake_size', 'Medium'), 35.0)
+            base_price = size_prices.get(data.get('cake_size', 'Medium'), 3500.0)
         
         # Add customization costs
         if data.get('toppings'):
@@ -151,12 +132,9 @@ def add_to_cart():
         
         # Dietary restrictions may add cost
         if data.get('is_gluten_free'):
-            customization_price += 5.0
+            customization_price += 500.0
         if data.get('is_vegan'):
-            customization_price += 5.0
-        
-        # Check if similar item exists in cart (same customizations)
-        # For simplicity, we'll just add as new item
+            customization_price += 500.0
         
         cart_item = CartItem(
             cart_id=cart.id,
@@ -207,9 +185,7 @@ def add_to_cart():
 @cart_bp.route('/cart/items/<int:item_id>', methods=['PUT'])
 @validate_request(CartItemCreateSchema)
 def update_cart_item(item_id):
-    """
-    Update cart item (usually just quantity or customization).
-    """
+    """Update cart item."""
     try:
         cart = get_or_create_cart()
         
@@ -246,9 +222,7 @@ def update_cart_item(item_id):
 
 @cart_bp.route('/cart/items/<int:item_id>', methods=['DELETE'])
 def remove_from_cart(item_id):
-    """
-    Remove item from cart.
-    """
+    """Remove item from cart."""
     try:
         cart = get_or_create_cart()
         
@@ -277,9 +251,7 @@ def remove_from_cart(item_id):
 
 @cart_bp.route('/cart/clear', methods=['POST'])
 def clear_cart():
-    """
-    Clear all items from cart.
-    """
+    """Clear all items from cart."""
     try:
         cart = get_or_create_cart()
         
@@ -299,11 +271,7 @@ def clear_cart():
 @cart_bp.route('/cart/items/<int:item_id>/images', methods=['POST'])
 def upload_reference_image(item_id):
     """
-    Upload reference image for custom cake.
-    Note: This is a placeholder. You'll need to implement actual file upload
-    using a service like AWS S3, Cloudinary, or local storage.
-    
-    For now, it accepts image_url.
+    Upload reference image for custom cake using Cloudinary.
     """
     try:
         cart = get_or_create_cart()
@@ -316,30 +284,39 @@ def upload_reference_image(item_id):
         if not cart_item:
             raise ResourceNotFoundError("Cart item not found")
         
-        data = request.get_json()
+        # Check if file is in request
+        if 'image' not in request.files:
+            raise ValidationError("No image file provided")
         
-        if not data or 'image_url' not in data:
-            raise ValidationError("image_url is required")
+        file = request.files['image']
         
+        if file.filename == '':
+            raise ValidationError("No image file selected")
+        
+        # Upload to Cloudinary
+        upload_result = upload_image(file, folder='cake_references')
+        
+        # Save image record
         image = CartItemImage(
             cart_item_id=cart_item.id,
-            image_url=data['image_url'],
-            image_filename=data.get('image_filename'),
-            description=data.get('description')
+            image_url=upload_result['secure_url'],
+            image_filename=file.filename,
+            description=request.form.get('description', '')
         )
         
         db.session.add(image)
         db.session.commit()
         
         current_app.logger.info(
-            f"Reference image added to cart item: {item_id}"
+            f"Reference image uploaded for cart item: {item_id}"
         )
         
         return jsonify({
             'message': 'Image uploaded successfully',
             'image': {
                 'id': image.id,
-                'image_url': image.image_url
+                'image_url': image.image_url,
+                'public_id': upload_result['public_id']
             }
         }), 201
         
@@ -348,4 +325,4 @@ def upload_reference_image(item_id):
     except Exception as e:
         current_app.logger.error(f"Error uploading image: {e}", exc_info=True)
         db.session.rollback()
-        raise DatabaseError("Failed to upload image")
+        raise DatabaseError(f"Failed to upload image: {str(e)}")

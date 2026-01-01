@@ -6,13 +6,16 @@ from config import config
 from extensions import db, migrate, ma, jwt
 from utils import setup_logger
 from utils.exceptions import APIException
+from utils.email_service import mail
 
 # Import all models for Flask-Migrate
 from models.order import Order, OrderItem
-from models.options import CustomizationOption # <--- This fixes the error! 
+from models.options import CustomizationOption
 from models.order_customization import OrderCustomization
 from models.cake import Cake
 from models.User import User
+from models.cart import Cart, CartItem, CartItemImage
+from models.customization import CakeTemplate, CakeTemplateImage
 
 
 def create_app(config_name=None):
@@ -30,16 +33,16 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     ma.init_app(app)
     jwt.init_app(app)
+    mail.init_app(app)  # Initialize Flask-Mail
     
     # Configure CORS
-   # Configure CORS in app.py
     CORS(app, 
      resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
      supports_credentials=True,
-     # These two lines are the "Keys to the Kingdom"
      allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN"],
      expose_headers=["X-CSRF-TOKEN"]
-)
+    )
+    
     # Setup logging
     setup_logger(app)
     
@@ -64,7 +67,7 @@ def register_blueprints(app):
     from controllers.admin_controller import admin_bp
     from controllers.customization_controller import customization_bp
     from controllers.cart_controller import cart_bp
-    # from controllers.portfolio_controller import portfolio_bp
+    from controllers.portfolio_controller import portfolio_bp
 
     
     app.register_blueprint(cake_bp, url_prefix='/api')
@@ -74,7 +77,7 @@ def register_blueprints(app):
     app.register_blueprint(contact_bp, url_prefix='/api')
     app.register_blueprint(customization_bp, url_prefix='/api')
     app.register_blueprint(cart_bp, url_prefix='/api')
-    # app.register_blueprint(portfolio_bp, url_prefix='/api')
+    app.register_blueprint(portfolio_bp, url_prefix='/api')  # ENABLED
     
     app.logger.info("All blueprints registered successfully")
 
