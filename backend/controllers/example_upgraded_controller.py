@@ -11,7 +11,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models.cake import Cake
 from models.User import User
-from schemas.cake_schema import CakeSchema, CakeCreateSchema
+from schemas.cake_schema import CakeSchema, CakeCreateSchema, CakeUpdateSchema
 from utils.validators import validate_request, validate_pagination_params
 from utils.exceptions import (
     ValidationError,
@@ -53,7 +53,7 @@ def get_all_cakes():
         page, per_page = validate_pagination_params()
         
         # Query with pagination
-        cakes = Cake.query.filter_by(available=True).paginate(
+        cakes = Cake.query.paginate(
             page=page,
             per_page=per_page,
             error_out=False
@@ -199,10 +199,8 @@ def create_cake():
         {
             "name": "Chocolate Cake",
             "description": "Delicious chocolate cake",
-            "base_price": 25.00,
-            "category": "chocolate",
-            "image_url": "https://example.com/cake.jpg",
-            "available": true
+            "price": 25.00,
+            "image_url": "https://example.com/cake.jpg"
         }
     
     Returns:
@@ -264,7 +262,7 @@ def create_cake():
 
 @example_bp.route('/admin/cakes/<int:cake_id>', methods=['PUT'])
 @jwt_required()
-@validate_request(CakeCreateSchema)
+@validate_request(CakeUpdateSchema)
 def update_cake(cake_id):
     """
     Update an existing cake (Admin only).
