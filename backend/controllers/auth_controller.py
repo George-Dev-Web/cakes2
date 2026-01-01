@@ -171,9 +171,12 @@ def get_current_user():
         print(f"Error in get_current_user: {str(e)}")
         return jsonify({'message': 'Internal server error'}), 500
 
-@auth_bp.route('/profile', methods=['PUT'])
+@auth_bp.route('/profile', methods=['PUT', 'OPTIONS'])
 @jwt_required()
 def update_profile():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+    
     try:
         user_id = get_jwt_identity()
         # Convert back to integer for database query

@@ -38,12 +38,21 @@ class Config:
     if not JWT_SECRET_KEY:
         raise ValueError("JWT_SECRET_KEY environment variable is not set!")
     
+    # --- Authentication & Cookie Strategy ---
     JWT_TOKEN_LOCATION = ["cookies"]
     JWT_ACCESS_COOKIE_NAME = "access_token_cookie"
     JWT_COOKIE_HTTPONLY = True
     JWT_COOKIE_SECURE = FLASK_ENV == 'production'
     JWT_COOKIE_SAMESITE = "Lax"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
+    JWT_COOKIE_DOMAIN = None # Usually fine for localhost
+    JWT_ACCESS_CSRF_COOKIE_PATH = '/' 
+    JWT_ACCESS_CSRF_HEADER_NAME = "X-CSRF-TOKEN"
+    # --- CSRF Security Settings ---
+    # These enable Double Submit Cookie protection for your React frontend
+    JWT_COOKIE_CSRF_PROTECT = True      # Enable CSRF protection
+    JWT_CSRF_IN_COOKIES = True          # Sends CSRF token as a cookie Axios can read
+    JWT_CSRF_CHECK_FORM = False         # Only check JSON headers for the CSRF token
     
     # CORS Settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:5173').split(',')
@@ -52,7 +61,7 @@ class Config:
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
     LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
     
-    # Email Settings (for future use)
+    # Email Settings
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
     MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
@@ -65,20 +74,21 @@ class DevelopmentConfig(Config):
     """Development-specific configuration."""
     DEBUG = True
     TESTING = False
+    JWT_COOKIE_SECURE = False  # Allow HTTP (not HTTPS) for local dev
 
 
 class TestingConfig(Config):
     """Testing-specific configuration."""
     TESTING = True
     SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL', 'sqlite:///test.db')
-    JWT_COOKIE_SECURE = False  # Allow testing without HTTPS
+    JWT_COOKIE_SECURE = False
 
 
 class ProductionConfig(Config):
     """Production-specific configuration."""
     DEBUG = False
     TESTING = False
-    JWT_COOKIE_SECURE = True  # Enforce HTTPS in production
+    JWT_COOKIE_SECURE = True
 
 
 # Configuration dictionary

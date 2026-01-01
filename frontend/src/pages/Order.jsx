@@ -1,540 +1,378 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import './Order.css';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "../contexts/CartContext";
+import { fetchCakes, fetchCustomizations } from "../utils/api";
+import { toast } from "react-toastify";
+import "./Order.css";
+
+// Define which categories allow multiple selections (e.g., Topping, Art)
+const MULTI_SELECT_CATEGORIES = ["Topping", "Art"];
 
 const Order = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [customizationOptions, setCustomizationOptions] = useState({});
-  const [uploadedImages, setUploadedImages] = useState([]);
-  
-  const [formData, setFormData] = useState({
-    cake_shape: 'Round',
-    cake_size: 'Medium',
-    cake_layers: 2,
-    flavor: '',
-    filling: '',
-    frosting: '',
-    is_gluten_free: false,
-    is_vegan: false,
-    is_sugar_free: false,
-    is_dairy_free: false,
-    toppings: [],
-    message_on_cake: '',
-    notes: '',
-    quantity: 1
+  const { addToCart } = useCart();
+
+  const [orderData, setOrderData] = useState({
+    cake_id: "",
+    quantity: 1,
+    delivery_date: "",
+    special_requests: "",
   });
 
+  const [cakes, setCakes] = useState([]);
+  const [customizations, setCustomizations] = useState([]);
+  const [selectedCustomizations, setSelectedCustomizations] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const formatPrice = (price) =>
+    `KSh ${parseFloat(price).toLocaleString("en-KE")}`;
+
+  // --- DATA FETCHING ---
   useEffect(() => {
-    fetchCustomizationOptions();
+    const fetchData = async () => {
+      try {
+        const [cakesData, customData] = await Promise.all([
+          fetchCakes(),
+          fetchCustomizations(),
+        ]);
+
+        setCakes(cakesData);
+
+        // Handle Customizations (Group flat array if necessary)
+        let grouped = [];
+        if (Array.isArray(customData)) {
+          // If already grouped (has 'options' array)
+          if (customData.length > 0 && customData[0].options) {
+            grouped = customData;
+          } else {
+            // Group flat array by category
+            const groups = {};
+            customData.forEach((item) => {
+              // Skip inactive items
+              if (item.is_active === false || item.active === false) return;
+
+              const cat = item.category || "Other";
+              if (!groups[cat]) groups[cat] = [];
+              groups[cat].push(item);
+            });
+            grouped = Object.entries(groups).map(([category, options]) => ({
+              category,
+              options,
+            }));
+          }
+        }
+        setCustomizations(grouped);
+      } catch (err) {
+        setError("Failed to load data. Please try again later.");
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const fetchCustomizationOptions = async () => {
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/customization/options`);
-      setCustomizationOptions(response.data);
-    } catch (error) {
-      console.error('Error fetching options:', error);
-      toast.error('Failed to load customization options');
-    }
+  const handleChange = (e) => {
+    const { name, value, type } = e.target;
+    const val = type === "number" ? Number(value) : value;
+    setOrderData({ ...orderData, [name]: val });
   };
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
+  // --- CORE CUSTOMIZATION LOGIC ---
+  const handleCustomizationSelect = (category, option) => {
+    const isMultiSelect = MULTI_SELECT_CATEGORIES.includes(category);
 
-  const handleToppingToggle = (toppingId) => {
-    setFormData(prev => ({
-      ...prev,
-      toppings: prev.toppings.includes(toppingId)
-        ? prev.toppings.filter(id => id !== toppingId)
-        : [...prev.toppings, toppingId]
-    }));
-  };
+    setSelectedCustomizations((prev) => {
+      if (isMultiSelect) {
+        // Multi-Select Logic
+        const currentOptions = Array.isArray(prev[category])
+          ? prev[category]
+          : [];
+        const index = currentOptions.findIndex((o) => o.id === option.id);
 
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-
-    setLoading(true);
-    const formData = new FormData();
-    
-    files.forEach(file => {
-      formData.append('files[]', file);
-    });
-    formData.append('folder', 'cake-references');
-
-    try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/upload/multiple`,
-        formData,
-        {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        if (index > -1) {
+          // Remove option
+          return {
+            ...prev,
+            [category]: currentOptions.filter((_, i) => i !== index),
+          };
+        } else {
+          // Add option
+          return { ...prev, [category]: [...currentOptions, option] };
         }
-      );
-
-      setUploadedImages(prev => [...prev, ...response.data.results]);
-      toast.success(`Uploaded ${response.data.results.length} image(s)`);
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload images');
-    } finally {
-      setLoading(false);
-    }
+      } else {
+        // Single-Select Logic
+        return {
+          ...prev,
+          [category]: prev[category]?.id === option.id ? null : option,
+        };
+      }
+    });
   };
 
-  const removeImage = (index) => {
-    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  const calculateTotal = () => {
+    let total = 0;
+    const quantity = orderData.quantity || 1;
+
+    // 1. Base Cake Price
+    const baseCake = cakes.find(
+      (cake) => cake.id === Number(orderData.cake_id)
+    );
+    if (baseCake) total += baseCake.price * quantity;
+
+    // 2. Customizations Price
+    Object.values(selectedCustomizations).forEach((selection) => {
+      if (Array.isArray(selection)) {
+        selection.forEach((opt) => {
+          if (opt && typeof opt.price === "number")
+            total += opt.price * quantity;
+        });
+      } else if (selection && typeof selection.price === "number") {
+        total += selection.price * quantity;
+      }
+    });
+
+    return total;
   };
 
-  const calculatePrice = () => {
-    const sizePrices = {
-      'Small': 20,
-      'Medium': 35,
-      'Large': 50,
-      'XL': 75
-    };
-    
-    let total = sizePrices[formData.cake_size] || 35;
-    
-    // Add topping costs
-    if (customizationOptions.topping) {
-      formData.toppings.forEach(toppingId => {
-        const topping = customizationOptions.topping.find(t => t.id === toppingId);
-        if (topping) total += topping.price;
-      });
-    }
-    
-    // Dietary restrictions
-    if (formData.is_gluten_free) total += 5;
-    if (formData.is_vegan) total += 5;
-    if (formData.is_sugar_free) total += 3;
-    if (formData.is_dairy_free) total += 3;
-    
-    return total * formData.quantity;
-  };
+  const handleAddToCartAndCheckout = async (e) => {
+    e.preventDefault();
+    setError("");
 
-  const handleAddToCart = async () => {
-    // Validation
-    if (!formData.cake_size) {
-      toast.error('Please select a cake size');
+    const baseCake = cakes.find(
+      (cake) => cake.id === Number(orderData.cake_id)
+    );
+    if (!baseCake || orderData.quantity < 1) {
+      setError("Please select a valid cake and quantity.");
+      toast.error("Please select a valid cake and quantity.");
       return;
     }
 
-    setLoading(true);
+    const allCustomizations = [];
+    let totalPriceAdjustment = 0;
 
-    try {
-      const cartData = {
-        ...formData,
-        base_price: calculatePrice() / formData.quantity,
-        customization_price: 0 // Already included in base_price
-      };
-
-      await axios.post(
-        `${import.meta.env.VITE_API_URL}/cart/items`,
-        cartData
-      );
-
-      // Upload reference images if any
-      if (uploadedImages.length > 0) {
-        // Images are already uploaded, just link them
-        // This would require getting the cart item ID from response
+    Object.entries(selectedCustomizations).forEach(([category, selection]) => {
+      if (Array.isArray(selection)) {
+        selection.forEach((opt) => {
+          if (opt) {
+            allCustomizations.push({
+              type: category,
+              name: opt.name,
+              price: opt.price || 0,
+            });
+            totalPriceAdjustment += opt.price || 0;
+          }
+        });
+      } else if (selection) {
+        allCustomizations.push({
+          type: category,
+          name: selection.name,
+          price: selection.price || 0,
+        });
+        totalPriceAdjustment += selection.price || 0;
       }
+    });
 
-      toast.success('Added to cart!');
-      navigate('/cart');
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      toast.error(error.response?.data?.message || 'Failed to add to cart');
-    } finally {
-      setLoading(false);
-    }
+    const itemToAdd = {
+      cake_id: baseCake.id,
+      name: baseCake.name + " (Custom)",
+      base_price: baseCake.price,
+      quantity: orderData.quantity,
+      customizations: allCustomizations,
+      metadata: {
+        delivery_date: orderData.delivery_date,
+        special_requests: orderData.special_requests,
+      },
+    };
+
+    addToCart(itemToAdd);
+
+    const itemTotal = baseCake.price + totalPriceAdjustment;
+    toast.success(
+      `${baseCake.name} (Custom) added to basket! Total: ${formatPrice(
+        itemTotal * orderData.quantity
+      )}`
+    );
+
+    setOrderData({
+      cake_id: "",
+      quantity: 1,
+      delivery_date: "",
+      special_requests: "",
+    });
+    setSelectedCustomizations({});
+
+    navigate("/checkout");
   };
+
+  // Delivery date constraints
+  const today = new Date();
+  const minDate = new Date(today);
+  minDate.setDate(today.getDate() + 1);
+  const maxDate = new Date(today);
+  maxDate.setMonth(today.getMonth() + 3);
+  const formatDate = (date) => date.toISOString().split("T")[0];
 
   return (
     <div className="order-page">
-      <div className="order-container">
-        <h1>Customize Your Cake 🎂</h1>
-        <p className="order-subtitle">Create your perfect cake with our easy customization options</p>
+      <div className="container">
+        <h1>Place Your Custom Cake Order</h1>
+        {error && <div className="error-message">{error}</div>}
 
-        <div className="order-content">
-          {/* Left Column - Customization Form */}
-          <div className="customization-form">
-            
-            {/* Cake Shape */}
-            <div className="form-section">
-              <h3>Cake Shape</h3>
-              <div className="option-grid">
-                {['Round', 'Square', 'Rectangle', 'Heart', 'Custom'].map(shape => (
-                  <button
-                    key={shape}
-                    type="button"
-                    className={`option-btn ${formData.cake_shape === shape ? 'active' : ''}`}
-                    onClick={() => setFormData(prev => ({ ...prev, cake_shape: shape }))}
-                  >
-                    {shape}
-                  </button>
-                ))}
+        <form className="order-form" onSubmit={handleAddToCartAndCheckout}>
+          {/* Cake Selection */}
+          <div className="form-section">
+            <h3>🎂 Base Cake Selection</h3>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="cake_id">Select Cake *</label>
+                <select
+                  id="cake_id"
+                  name="cake_id"
+                  value={orderData.cake_id}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Choose a cake</option>
+                  {cakes.map((cake) => (
+                    <option key={cake.id} value={cake.id}>
+                      {cake.name} - {formatPrice(cake.price)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="quantity">Quantity *</label>
+                <input
+                  type="number"
+                  id="quantity"
+                  name="quantity"
+                  min="1"
+                  max="10"
+                  value={orderData.quantity}
+                  onChange={handleChange}
+                  required
+                />
               </div>
             </div>
 
-            {/* Cake Size */}
-            <div className="form-section">
-              <h3>Cake Size *</h3>
-              <div className="option-grid">
-                {['Small', 'Medium', 'Large', 'XL'].map(size => (
-                  <button
-                    key={size}
-                    type="button"
-                    className={`option-btn ${formData.cake_size === size ? 'active' : ''}`}
-                    onClick={() => setFormData(prev => ({ ...prev, cake_size: size }))}
-                  >
-                    {size}
-                    <span className="size-info">
-                      {size === 'Small' && '6" (Serves 6-8)'}
-                      {size === 'Medium' && '8" (Serves 12-16)'}
-                      {size === 'Large' && '10" (Serves 20-24)'}
-                      {size === 'XL' && '12" (Serves 30-35)'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Number of Layers */}
-            <div className="form-section">
-              <label htmlFor="cake_layers">
-                <h3>Number of Layers</h3>
-              </label>
+            <div className="form-group">
+              <label htmlFor="delivery_date">Preferred Delivery Date *</label>
               <input
-                type="number"
-                id="cake_layers"
-                name="cake_layers"
-                min="1"
-                max="10"
-                value={formData.cake_layers}
-                onChange={handleInputChange}
-                className="form-input"
+                type="date"
+                id="delivery_date"
+                name="delivery_date"
+                value={orderData.delivery_date}
+                onChange={handleChange}
+                min={formatDate(minDate)}
+                max={formatDate(maxDate)}
+                required
               />
             </div>
+          </div>
 
-            {/* Flavor */}
-            <div className="form-section">
-              <label htmlFor="flavor">
-                <h3>Cake Flavor</h3>
-              </label>
-              {customizationOptions.flavor && customizationOptions.flavor.length > 0 ? (
-                <select
-                  id="flavor"
-                  name="flavor"
-                  value={formData.flavor}
-                  onChange={handleInputChange}
-                  className="form-select"
-                >
-                  <option value="">Select flavor...</option>
-                  {customizationOptions.flavor.map(option => (
-                    <option key={option.id} value={option.name}>
-                      {option.name} {option.price > 0 && `(+$${option.price})`}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  id="flavor"
-                  name="flavor"
-                  value={formData.flavor}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Chocolate, Vanilla, Red Velvet"
-                  className="form-input"
-                />
-              )}
-            </div>
+          {/* Customizations */}
+          <div className="form-section customization-area">
+            <h3>🎨 Customization Options</h3>
+            {loading ? (
+              <p>Loading customization options...</p>
+            ) : customizations.length > 0 ? (
+              customizations.map((group) => {
+                const isMulti = MULTI_SELECT_CATEGORIES.includes(
+                  group.category
+                );
+                const isSelected = (optionId) => {
+                  const selection = selectedCustomizations[group.category];
+                  if (isMulti && Array.isArray(selection)) {
+                    return selection.some((opt) => opt.id === optionId);
+                  }
+                  return selection?.id === optionId;
+                };
 
-            {/* Filling */}
-            <div className="form-section">
-              <label htmlFor="filling">
-                <h3>Filling</h3>
-              </label>
-              {customizationOptions.filling && customizationOptions.filling.length > 0 ? (
-                <select
-                  id="filling"
-                  name="filling"
-                  value={formData.filling}
-                  onChange={handleInputChange}
-                  className="form-select"
-                >
-                  <option value="">Select filling...</option>
-                  {customizationOptions.filling.map(option => (
-                    <option key={option.id} value={option.name}>
-                      {option.name} {option.price > 0 && `(+$${option.price})`}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  id="filling"
-                  name="filling"
-                  value={formData.filling}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Vanilla Cream, Chocolate Mousse"
-                  className="form-input"
-                />
-              )}
-            </div>
+                return (
+                  <div key={group.category} className="customization-group">
+                    <h4>
+                      {group.category}{" "}
+                      {isMulti ? "(Multi-Select)" : "(Single-Select)"}
+                    </h4>
+                    <p className="text-sm text-gray-500">
+                      {group.category === "Art"
+                        ? "E.g., Special lettering or complex frosting."
+                        : ""}
+                    </p>
 
-            {/* Frosting */}
-            <div className="form-section">
-              <label htmlFor="frosting">
-                <h3>Frosting</h3>
-              </label>
-              {customizationOptions.frosting && customizationOptions.frosting.length > 0 ? (
-                <select
-                  id="frosting"
-                  name="frosting"
-                  value={formData.frosting}
-                  onChange={handleInputChange}
-                  className="form-select"
-                >
-                  <option value="">Select frosting...</option>
-                  {customizationOptions.frosting.map(option => (
-                    <option key={option.id} value={option.name}>
-                      {option.name} {option.price > 0 && `(+$${option.price})`}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  id="frosting"
-                  name="frosting"
-                  value={formData.frosting}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Buttercream, Fondant"
-                  className="form-input"
-                />
-              )}
-            </div>
-
-            {/* Dietary Restrictions */}
-            <div className="form-section">
-              <h3>Dietary Restrictions</h3>
-              <div className="checkbox-group">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    name="is_gluten_free"
-                    checked={formData.is_gluten_free}
-                    onChange={handleInputChange}
-                  />
-                  <span>Gluten Free (+$5)</span>
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    name="is_vegan"
-                    checked={formData.is_vegan}
-                    onChange={handleInputChange}
-                  />
-                  <span>Vegan (+$5)</span>
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    name="is_sugar_free"
-                    checked={formData.is_sugar_free}
-                    onChange={handleInputChange}
-                  />
-                  <span>Sugar Free (+$3)</span>
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    name="is_dairy_free"
-                    checked={formData.is_dairy_free}
-                    onChange={handleInputChange}
-                  />
-                  <span>Dairy Free (+$3)</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Toppings */}
-            {customizationOptions.topping && customizationOptions.topping.length > 0 && (
-              <div className="form-section">
-                <h3>Toppings</h3>
-                <div className="topping-grid">
-                  {customizationOptions.topping.map(topping => (
-                    <button
-                      key={topping.id}
-                      type="button"
-                      className={`topping-btn ${formData.toppings.includes(topping.id) ? 'selected' : ''}`}
-                      onClick={() => handleToppingToggle(topping.id)}
-                    >
-                      {topping.name}
-                      {topping.price > 0 && <span className="price">+${topping.price}</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Message on Cake */}
-            <div className="form-section">
-              <label htmlFor="message_on_cake">
-                <h3>Message on Cake (Optional)</h3>
-              </label>
-              <input
-                type="text"
-                id="message_on_cake"
-                name="message_on_cake"
-                value={formData.message_on_cake}
-                onChange={handleInputChange}
-                placeholder="e.g., Happy Birthday John!"
-                maxLength="200"
-                className="form-input"
-              />
-              <small>{formData.message_on_cake.length}/200 characters</small>
-            </div>
-
-            {/* Reference Images */}
-            <div className="form-section">
-              <h3>Upload Reference Images (Optional)</h3>
-              <p className="help-text">Upload pictures of cakes you like for reference</p>
-              
-              <div className="upload-area">
-                <input
-                  type="file"
-                  id="images"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="file-input"
-                />
-                <label htmlFor="images" className="upload-label">
-                  📷 Choose Images
-                </label>
-              </div>
-
-              {uploadedImages.length > 0 && (
-                <div className="uploaded-images">
-                  {uploadedImages.map((img, index) => (
-                    <div key={index} className="image-preview">
-                      <img src={img.url} alt={`Reference ${index + 1}`} />
-                      <button
-                        type="button"
-                        className="remove-img-btn"
-                        onClick={() => removeImage(index)}
-                      >
-                        ✕
-                      </button>
+                    <div className="customization-options">
+                      {group.options.map((option) => (
+                        <div
+                          key={option.id}
+                          className={`customization-option ${
+                            isSelected(option.id) ? "selected" : ""
+                          }`}
+                          onClick={() =>
+                            handleCustomizationSelect(group.category, option)
+                          }
+                        >
+                          {option.image_url && (
+                            <img
+                              src={option.image_url}
+                              alt={option.name}
+                              className="customization-img"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src =
+                                  "https://placehold.co/64x64/CCCCCC/333333?text=IMG";
+                              }}
+                            />
+                          )}
+                          <div className="option-details">
+                            <span>{option.name}</span>
+                            {option.price > 0 && (
+                              <span className="customization-price">
+                                +{formatPrice(option.price)}
+                              </span>
+                            )}
+                          </div>
+                          {option.description && (
+                            <p className="description">{option.description}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                );
+              })
+            ) : (
+              <p>No customization options available.</p>
+            )}
+            <div className="total-section mt-8 pt-4 border-t border-gray-300">
+              <strong>Order Total: {formatPrice(calculateTotal())}</strong>
             </div>
+          </div>
 
-            {/* Special Notes */}
-            <div className="form-section">
-              <label htmlFor="notes">
-                <h3>Special Instructions (Optional)</h3>
+          <div className="form-section">
+            <h3>📝 Final Details & Delivery</h3>
+            <div className="form-group">
+              <label htmlFor="special_requests">
+                Special Requests (e.g., specific placement for art)
               </label>
               <textarea
-                id="notes"
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                placeholder="Any special requests or instructions?"
+                id="special_requests"
+                name="special_requests"
+                value={orderData.special_requests}
+                onChange={handleChange}
+                placeholder="Any special instructions or notes"
                 rows="4"
-                maxLength="1000"
-                className="form-textarea"
-              />
-              <small>{formData.notes.length}/1000 characters</small>
-            </div>
-
-            {/* Quantity */}
-            <div className="form-section">
-              <label htmlFor="quantity">
-                <h3>Quantity</h3>
-              </label>
-              <input
-                type="number"
-                id="quantity"
-                name="quantity"
-                min="1"
-                max="50"
-                value={formData.quantity}
-                onChange={handleInputChange}
-                className="form-input quantity-input"
-              />
+              ></textarea>
             </div>
           </div>
 
-          {/* Right Column - Order Summary */}
-          <div className="order-summary">
-            <div className="summary-card">
-              <h3>Order Summary</h3>
-              
-              <div className="summary-item">
-                <span>Shape:</span>
-                <strong>{formData.cake_shape}</strong>
-              </div>
-              
-              <div className="summary-item">
-                <span>Size:</span>
-                <strong>{formData.cake_size}</strong>
-              </div>
-              
-              <div className="summary-item">
-                <span>Layers:</span>
-                <strong>{formData.cake_layers}</strong>
-              </div>
-              
-              {formData.flavor && (
-                <div className="summary-item">
-                  <span>Flavor:</span>
-                  <strong>{formData.flavor}</strong>
-                </div>
-              )}
-              
-              {formData.toppings.length > 0 && (
-                <div className="summary-item">
-                  <span>Toppings:</span>
-                  <strong>{formData.toppings.length} selected</strong>
-                </div>
-              )}
-              
-              <div className="summary-item">
-                <span>Quantity:</span>
-                <strong>{formData.quantity}</strong>
-              </div>
-              
-              <div className="summary-divider" />
-              
-              <div className="summary-total">
-                <span>Total Price:</span>
-                <strong className="price">KSh {calculatePrice().toFixed(2)}</strong>
-              </div>
-              
-              <button
-                className="add-to-cart-btn"
-                onClick={handleAddToCart}
-                disabled={loading}
-              >
-                {loading ? 'Adding...' : 'Add to Cart'}
-              </button>
-              
-              <p className="help-text">Minimum 48 hours notice required</p>
-            </div>
-          </div>
-        </div>
+          <button type="submit" className="btn btn-primary">
+            Add Cake to Basket & Go to Checkout
+          </button>
+        </form>
       </div>
     </div>
   );

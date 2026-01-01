@@ -19,7 +19,7 @@ class User(db.Model):
                           onupdate=db.func.current_timestamp())
     
     # Relationship with orders
-    orders = db.relationship('Order', backref='user', lazy=True)
+    orders = db.relationship('Order', back_populates='user', lazy=True)
     
     def set_password(self, password):   
         self.password_hash = generate_password_hash(password)

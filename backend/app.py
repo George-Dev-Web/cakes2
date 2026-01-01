@@ -8,10 +8,10 @@ from utils import setup_logger
 from utils.exceptions import APIException
 
 # Import all models for Flask-Migrate
-from models.customization import CustomizationOption 
+from models.order import Order, OrderItem
+from models.options import CustomizationOption # <--- This fixes the error! 
 from models.order_customization import OrderCustomization
 from models.cake import Cake
-from models.order import Order
 from models.User import User
 
 
@@ -32,11 +32,14 @@ def create_app(config_name=None):
     jwt.init_app(app)
     
     # Configure CORS
+   # Configure CORS in app.py
     CORS(app, 
-         resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
-         supports_credentials=True
-    )
-    
+     resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
+     supports_credentials=True,
+     # These two lines are the "Keys to the Kingdom"
+     allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN"],
+     expose_headers=["X-CSRF-TOKEN"]
+)
     # Setup logging
     setup_logger(app)
     
@@ -60,6 +63,9 @@ def register_blueprints(app):
     from controllers.contact_controller import contact_bp
     from controllers.admin_controller import admin_bp
     from controllers.customization_controller import customization_bp
+    from controllers.cart_controller import cart_bp
+    # from controllers.portfolio_controller import portfolio_bp
+
     
     app.register_blueprint(cake_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
@@ -67,6 +73,8 @@ def register_blueprints(app):
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(contact_bp, url_prefix='/api')
     app.register_blueprint(customization_bp, url_prefix='/api')
+    app.register_blueprint(cart_bp, url_prefix='/api')
+    # app.register_blueprint(portfolio_bp, url_prefix='/api')
     
     app.logger.info("All blueprints registered successfully")
 

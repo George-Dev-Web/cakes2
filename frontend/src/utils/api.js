@@ -1,5 +1,12 @@
-// frontend/src/utils/api.js (COMPLETE REVISION)
+// frontend/src/utils/api.js
 import axios from "axios";
+
+// Add this helper function at the top of api.js
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(";").shift();
+};
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
@@ -11,33 +18,45 @@ const api = axios.create({
   },
   // CRITICAL: Must be true to send and receive HTTP-only cookies
   withCredentials: true,
+
+  // CSRF FIX: These lines allow Axios to automatically grab the CSRF token
+  // from the cookie Flask sends and include it in the headers for POST/PUT/DELETE.
+  xsrfCookieName: "csrf_access_token",
+  xsrfHeaderName: "X-CSRF-TOKEN",
 });
 
-// --- REMOVED REQUEST INTERCEPTOR (No more localStorage token) ---
-
-// Handle authentication errors (FIXED: Removes Redirect Loop)
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // 🔑 CRITICAL FIX: DO NOT REDIRECT OR TOUCH WINDOW.
-      // Simply reject the promise. This allows AuthContext's useEffect to
-      // catch the error and set currentUser to null, stopping the loop.
-      console.warn("API 401 Unauthorized: Session check failed.");
-
-      // We explicitly reject the promise for the caller to catch.
-      return Promise.reject(error);
+// Add this request interceptor after axios.create
+api.interceptors.request.use(
+  (config) => {
+    const csrfToken = getCookie("csrf_access_token");
+    if (csrfToken) {
+      config.headers["X-CSRF-TOKEN"] = csrfToken;
     }
-
-    // For other errors (500, 404, etc.), reject as usual.
+    return config;
+  },
+  (error) => {
     return Promise.reject(error);
   }
 );
 
-// Auth API calls
+// Handle authentication errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // 🔑 CRITICAL FIX: Simply reject the promise.
+      // This allows AuthContext to catch the error and handle the logout.
+      console.warn("API 401 Unauthorized: Session check failed.");
+      return Promise.reject(error);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// --- Auth API calls ---
+
 export const loginUser = async (email, password) => {
   const response = await api.post("/auth/login", { email, password });
-  // Token is set in cookie. Return user data from response body.
   return {
     user: response.data.user,
     message: response.data.message || "Login successful",
@@ -46,16 +65,13 @@ export const loginUser = async (email, password) => {
 
 export const registerUser = async (userData) => {
   const response = await api.post("/auth/register", userData);
-  // Token is set in cookie. Return user data from response body.
   return {
     user: response.data.user,
     message: response.data.message || "Registration successful",
   };
 };
 
-// NEW: Logout utility function
 export const logoutUser = async () => {
-  // This call tells the Flask backend to unset the HTTP-only cookie.
   await api.post("/auth/logout");
   return { success: true };
 };
@@ -65,18 +81,41 @@ export const getCurrentUser = async () => {
     const response = await api.get("/auth/me");
     return response.data;
   } catch (error) {
-    // If the error is a 401, the interceptor rejects it, and AuthContext catches it.
     console.error("Error fetching current user:", error.response?.data);
     throw error;
   }
 };
 
-// --- All other API calls remain the same ---
+// --- Profile & User Management ---
+
+export const updateUserProfile = async (profileData) => {
+  try {
+    const response = await api.put("/auth/profile", profileData);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating profile:", error.response?.data);
+    throw error;
+  }
+};
+
+// --- Cake & Customization API calls ---
 
 export const fetchCakes = async () => {
   const response = await api.get("/cakes");
   return response.data;
 };
+
+export const fetchCustomizations = async () => {
+  try {
+    const response = await api.get("/customizations");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching customizations:", error.response?.data);
+    throw error;
+  }
+};
+
+// --- Order API calls ---
 
 export const submitOrder = async (orderData) => {
   try {
@@ -84,7 +123,6 @@ export const submitOrder = async (orderData) => {
       ...orderData,
       delivery_date: orderData.deliveryDate || orderData.delivery_date,
     };
-
     const response = await api.post("/orders", formattedData);
     return response.data;
   } catch (error) {
@@ -102,7 +140,6 @@ export const fetchUserOrders = async () => {
     if (error.response?.status === 422) {
       throw new Error("Unable to fetch orders. Please try logging in again.");
     } else if (error.response?.status === 401) {
-      // No localStorage removal needed now
       throw new Error("Session expired. Please log in again.");
     } else {
       throw new Error("Failed to load orders. Please try again later.");
@@ -120,20 +157,7 @@ export const cancelOrder = async (orderId) => {
   }
 };
 
-export const updateUserProfile = async (profileData) => {
-  try {
-    const response = await api.put("/auth/profile", profileData);
-    return response.data;
-  } catch (error) {
-    console.error("Error updating profile:", error.response?.data);
-    throw error;
-  }
-};
-
-export const submitContactForm = async (formData) => {
-  const response = await api.post("/contact", formData);
-  return response.data;
-};
+// --- Admin API calls ---
 
 export const fetchAdminStats = async () => {
   try {
@@ -217,14 +241,11 @@ export const fetchAdminUsers = async (params = {}) => {
   }
 };
 
-export const fetchCustomizations = async () => {
-  try {
-    const response = await api.get("/customizations");
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching customizations:", error.response?.data);
-    throw error;
-  }
+// --- Miscellaneous ---
+
+export const submitContactForm = async (formData) => {
+  const response = await api.post("/contact", formData);
+  return response.data;
 };
 
 export default api;

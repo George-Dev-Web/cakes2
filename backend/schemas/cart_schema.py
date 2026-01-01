@@ -64,10 +64,10 @@ class CartItemCreateSchema(Schema):
     frosting = fields.Str(validate=validate.Length(max=100))
     
     # Dietary
-    is_gluten_free = fields.Bool(missing=False)
-    is_vegan = fields.Bool(missing=False)
-    is_sugar_free = fields.Bool(missing=False)
-    is_dairy_free = fields.Bool(missing=False)
+    is_gluten_free = fields.Bool(load_default=False)
+    is_vegan = fields.Bool(load_default=False)        
+    is_sugar_free = fields.Bool(load_default=False)   
+    is_dairy_free = fields.Bool(load_default=False)
     
     # Decorations
     toppings = fields.List(fields.Int())  # List of topping IDs

@@ -3,8 +3,11 @@ from extensions import db
 from datetime import datetime
 
 class Order(db.Model):
-    """Customer orders with full customization support."""
+    """Customer orders with full customization support."""  
     __tablename__ = 'order'
+
+    # Inside class Order(db.Model):
+    customizations = db.relationship('OrderCustomization', back_populates='order', cascade='all, delete-orphan')
     
     id = db.Column(db.Integer, primary_key=True)
     order_number = db.Column(db.String(50), unique=True, nullable=False)  # e.g., ORD-20260101-001
@@ -48,7 +51,7 @@ class Order(db.Model):
     completed_at = db.Column(db.DateTime)
     
     # Relationships
-    user = db.relationship('User', backref='orders')
+    user = db.relationship('User', back_populates='orders')
     items = db.relationship('OrderItem', back_populates='order', cascade='all, delete-orphan')
     
     def __repr__(self):

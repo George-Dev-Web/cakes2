@@ -11,4 +11,4 @@ class OrderCustomization(db.Model): # Use db.Model instead of Base
 
     # Relationships
     order = relationship("Order", back_populates="customizations")
-    option = relationship("CustomizationOption")
+    option = relationship("models.options.CustomizationOption")
