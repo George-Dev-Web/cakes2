@@ -6,33 +6,34 @@ import re
 class UserSchema(Schema):
     """Schema for user serialization."""
     id = fields.Int(dump_only=True)
-    username = fields.Str(required=True)
+    name = fields.Str(required=True)
     email = fields.Email(required=True)
+    phone = fields.Str()
+    address = fields.Str()
     is_admin = fields.Bool(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
+    updated_at = fields.DateTime(dump_only=True)
 
 
 class UserRegistrationSchema(Schema):
     """Schema for user registration validation."""
-    username = fields.Str(
+    name = fields.Str(
         required=True,
-        validate=[
-            validate.Length(min=3, max=50, error="Username must be between 3 and 50 characters"),
-            validate.Regexp(
-                r'^[a-zA-Z0-9_]+$',
-                error="Username can only contain letters, numbers, and underscores"
-            )
-        ]
+        validate=validate.Length(min=2, max=100, error="Name must be between 2 and 100 characters")
     )
     email = fields.Email(
         required=True,
-        validate=validate.Length(max=120, error="Email is too long")
+        validate=validate.Length(max=100, error="Email is too long")
     )
     password = fields.Str(
         required=True,
         load_only=True,
         validate=validate.Length(min=8, error="Password must be at least 8 characters")
     )
+    phone = fields.Str(
+        validate=validate.Length(max=20, error="Phone number is too long")
+    )
+    address = fields.Str()
     
     @validates('password')
     def validate_password_strength(self, value):

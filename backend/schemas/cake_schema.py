@@ -6,11 +6,9 @@ class CakeSchema(Schema):
     """Schema for cake serialization."""
     id = fields.Int(dump_only=True)
     name = fields.Str(required=True)
-    description = fields.Str()
-    base_price = fields.Float(required=True)
-    category = fields.Str()
+    description = fields.Str(required=True)
+    price = fields.Float(required=True)
     image_url = fields.Str()
-    available = fields.Bool()
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
@@ -22,19 +20,29 @@ class CakeCreateSchema(Schema):
         validate=validate.Length(min=3, max=100, error="Name must be between 3 and 100 characters")
     )
     description = fields.Str(
-        validate=validate.Length(max=500, error="Description is too long")
+        required=True,
+        validate=validate.Length(min=10, max=500, error="Description must be between 10 and 500 characters")
     )
-    base_price = fields.Float(
+    price = fields.Float(
         required=True,
         validate=validate.Range(min=0.01, error="Price must be greater than 0")
     )
-    category = fields.Str(
-        validate=validate.OneOf(
-            ['chocolate', 'vanilla', 'strawberry', 'custom', 'other'],
-            error="Invalid category"
-        )
+    image_url = fields.Url(
+        validate=validate.Length(max=200, error="Image URL is too long")
+    )
+
+
+class CakeUpdateSchema(Schema):
+    """Schema for cake update validation (all fields optional)."""
+    name = fields.Str(
+        validate=validate.Length(min=3, max=100, error="Name must be between 3 and 100 characters")
+    )
+    description = fields.Str(
+        validate=validate.Length(min=10, max=500, error="Description must be between 10 and 500 characters")
+    )
+    price = fields.Float(
+        validate=validate.Range(min=0.01, error="Price must be greater than 0")
     )
     image_url = fields.Url(
-        validate=validate.Length(max=500, error="Image URL is too long")
+        validate=validate.Length(max=200, error="Image URL is too long")
     )
-    available = fields.Bool(missing=True)
