@@ -131,6 +131,12 @@ export const submitOrder = async (orderData) => {
   }
 };
 
+export const createOrder = (orderData) => api.post("/orders", orderData);
+export const fetchOrderDetails = (orderNumber) =>
+  api.get(`/orders/track/${orderNumber}`);
+export const fetchPortfolioCakes = (params) =>
+  api.get("/portfolio", { params });
+
 export const fetchUserOrders = async () => {
   try {
     const response = await api.get("/orders/my-orders");

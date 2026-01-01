@@ -21,6 +21,7 @@ import AdminDashboard from "./pages/Admin/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CakePortfolio from "./pages/CakePortfolio";
 import CheckoutPage from "./pages/CheckoutPage";
+import OrderConfirmation from "./pages/OrderConfirmation";
 
 import "./App.css";
 import { ToastContainer } from "react-toastify";
@@ -60,6 +61,10 @@ function App() {
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/cakes" element={<CakePortfolio />} />
                   <Route path="/checkout" element={<CheckoutPage />} />
+                  <Route
+                    path="/order-confirmation/:orderNumber"
+                    element={<OrderConfirmation />}
+                  />
 
                   {/* -------------------- 2. PROTECTED ROUTES -------------------- */}
                   <Route element={<ProtectedRoute />}>

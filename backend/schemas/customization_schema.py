@@ -30,10 +30,10 @@ class CustomizationOptionCreateSchema(Schema):
     description = fields.Str(validate=validate.Length(max=500))
     price = fields.Float(required=True, validate=validate.Range(min=0))
     image_url = fields.Str(validate=validate.URL())
-    is_active = fields.Bool(missing=True)
-    sort_order = fields.Int(missing=0)
-    is_vegan_compatible = fields.Bool(missing=True)
-    is_gluten_free_compatible = fields.Bool(missing=True)
+    is_active = fields.Bool(load_default=True)
+    sort_order = fields.Int(load_default=0)
+    is_vegan_compatible = fields.Bool(load_default=True)
+    is_gluten_free_compatible = fields.Bool(load_default=True)
 
 
 class CakeTemplateImageSchema(Schema):
@@ -101,7 +101,7 @@ class CakeTemplateCreateSchema(Schema):
     primary_image_url = fields.Str(validate=validate.URL())
     
     # Availability
-    is_available = fields.Bool(missing=True)
-    is_featured = fields.Bool(missing=False)
-    can_be_vegan = fields.Bool(missing=False)
-    can_be_gluten_free = fields.Bool(missing=False)
+    is_available = fields.Bool(load_default=True)
+    is_featured = fields.Bool(load_default=False)
+    can_be_vegan = fields.Bool(load_default=False)
+    can_be_gluten_free = fields.Bool(load_default=False)

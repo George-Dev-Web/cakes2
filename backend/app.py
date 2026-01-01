@@ -7,6 +7,7 @@ from extensions import db, migrate, ma, jwt
 from utils import setup_logger
 from utils.exceptions import APIException
 from utils.email_service import mail
+from utils.image_upload import init_cloudinary # <--- ADD THIS
 
 # Import all models for Flask-Migrate
 from models.order import Order, OrderItem
@@ -34,6 +35,7 @@ def create_app(config_name=None):
     ma.init_app(app)
     jwt.init_app(app)
     mail.init_app(app)  # Initialize Flask-Mail
+    init_cloudinary(app)
     
     # Configure CORS
     CORS(app, 

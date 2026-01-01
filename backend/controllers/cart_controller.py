@@ -16,7 +16,7 @@ from utils.validators import validate_request
 from utils.exceptions import (
     ResourceNotFoundError, ValidationError, DatabaseError
 )
-from utils.image_upload import upload_image  # Import image upload utility
+from utils.image_upload import upload_image_to_cloudinary as upload_image # Import image upload utility
 
 cart_bp = Blueprint('cart', __name__)
 

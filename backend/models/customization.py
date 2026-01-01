@@ -12,7 +12,7 @@ class CustomizationOption(db.Model):
     description = db.Column(db.Text)
     price = db.Column(db.Float, default=0.0)  # Additional cost for this option
     image_url = db.Column(db.String(500))
-    is_active = db.Column(db.Boolean, default=True)
+    active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)  # For display ordering
     
     # Availability flags
