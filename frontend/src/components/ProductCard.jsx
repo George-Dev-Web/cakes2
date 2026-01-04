@@ -1,12 +1,8 @@
 // frontend/src/components/ProductCard.jsx
 import "./ProductCard.css";
+import { formatPrice } from "../utils/formatting";
 
 const ProductCard = ({ product, onAddToOrder }) => {
-  // Format price as Kenyan Shillings
-  const formatPrice = (price) => {
-    return `KSh ${price.toLocaleString("en-KE")}`;
-  };
-
   return (
     <div className="product-card">
       <img src={product.image} alt={product.name} className="product-image" />

@@ -109,14 +109,12 @@ def add_to_cart():
                 raise ResourceNotFoundError("Cake not found")
             base_price = cake.price
         else:
-            # Price based on size for custom cakes
-            size_prices = {
-                'Small': 2000.0,
-                'Medium': 3500.0,
-                'Large': 5000.0,
-                'XL': 7500.0
-            }
-            base_price = size_prices.get(data.get('cake_size', 'Medium'), 3500.0)
+            # Price based on size for custom cakes, fetched dynamically
+            cake_size_option = CustomizationOption.query.filter_by(
+                category='size',
+                name=data.get('cake_size', 'Medium')
+            ).first()
+            base_price = cake_size_option.price if cake_size_option else 0.0
         
         # Add customization costs
         if data.get('toppings'):
@@ -130,11 +128,19 @@ def add_to_cart():
             customization_price += sum(t.price for t in toppings)
             data['toppings'] = json.dumps(topping_ids)  # Store as JSON
         
-        # Dietary restrictions may add cost
+        # Dietary restrictions may add cost, fetched dynamically
         if data.get('is_gluten_free'):
-            customization_price += 500.0
+            gluten_free_option = CustomizationOption.query.filter_by(
+                category='dietary_restriction',
+                name='Gluten-Free'
+            ).first()
+            customization_price += gluten_free_option.price if gluten_free_option else 0.0
         if data.get('is_vegan'):
-            customization_price += 500.0
+            vegan_option = CustomizationOption.query.filter_by(
+                category='dietary_restriction',
+                name='Vegan'
+            ).first()
+            customization_price += vegan_option.price if vegan_option else 0.0
         
         cart_item = CartItem(
             cart_id=cart.id,

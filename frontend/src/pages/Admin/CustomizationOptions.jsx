@@ -5,17 +5,6 @@ import api from "../../utils/api";
 import { useAuth } from "../../contexts/AuthContext";
 import "./CustomizationOptions.css";
 
-const CATEGORY_OPTIONS = [
-  "Design",
-  "Topping",
-  "Flavour",
-  "Filling",
-  "Writing",
-  "Decoration",
-  "Art",
-  "Other",
-];
-
 const normalizeCategory = (raw) =>
   raw ? raw.toString().trim().toLowerCase() : "";
 
@@ -27,6 +16,7 @@ export default function CustomizationOptions() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState([]); // New state for dynamic categories
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,12 +24,33 @@ export default function CustomizationOptions() {
 
   const [form, setForm] = useState({
     name: "",
-    category: "Design",
+    category: "", // Initialize with empty string or default
     price: "",
     description: "",
     image_url: "",
     is_active: true,
   });
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get("/customizations/categories");
+        setCategories(response.data.categories);
+        // Set a default category if none is selected for new forms
+        if (!form.category && response.data.categories.length > 0) {
+          setForm((prevForm) => ({
+            ...prevForm,
+            category: response.data.categories[0],
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching categories:", err);
+        setError("Failed to load categories.");
+      }
+    };
+    fetchCategories();
+  }, []); // Empty dependency array to run only once on mount
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -49,7 +60,7 @@ export default function CustomizationOptions() {
       let resp;
       try {
         resp = await api.get("/admin/customizations");
-      } catch (e) {
+      } catch {
         // fallback to public endpoint if admin endpoint doesn't exist
         resp = await api.get("/customizations");
       }
@@ -123,7 +134,7 @@ export default function CustomizationOptions() {
     setEditing(null);
     setForm({
       name: "",
-      category: "Design",
+      category: categories.length > 0 ? categories[0] : "", // Default to first fetched category
       price: "",
       description: "",
       image_url: "",
@@ -136,9 +147,7 @@ export default function CustomizationOptions() {
     setEditing(item);
     setForm({
       name: item.name || "",
-      category:
-        CATEGORY_OPTIONS.find((c) => normalizeCategory(c) === item.category) ||
-        (item.category ? item.category : "Other"),
+      category: item.category ? item.category : "", // Use item's category
       price: item.price ?? "",
       description: item.description ?? "",
       image_url: item.image_url ?? "",

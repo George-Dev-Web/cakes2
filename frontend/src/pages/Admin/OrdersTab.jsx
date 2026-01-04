@@ -1,6 +1,6 @@
-const OrdersTab = ({ orders, onStatusUpdate }) => {
-  const formatPrice = (price) => `KSh ${price.toLocaleString("en-KE")}`;
+import { formatPrice } from "../../utils/formatting";
 
+const OrdersTab = ({ orders, onStatusUpdate }) => {
   return (
     <div className="orders-table">
       <h3>All Orders</h3>

@@ -108,6 +108,13 @@ def get_customizations():
     # Return the structured array
     return jsonify(result_array), 200
 
+@customization_bp.route("/customizations/categories", methods=["GET"])
+def get_unique_categories():
+    categories = db.session.query(CustomizationOption.category).distinct().all()
+    # Extract just the category strings from the result tuples
+    category_names = [c[0] for c in categories]
+    return jsonify({"categories": category_names}), 200
+
 
 # Admin: Add a new customization
 @customization_bp.route("/admin/customizations", methods=["POST"])

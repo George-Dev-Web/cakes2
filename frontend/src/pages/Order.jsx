@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../contexts/CartContext";
+import { formatPrice } from "../utils/formatting";
 import { fetchCakes, fetchCustomizations } from "../utils/api";
 import { toast } from "react-toastify";
 import "./Order.css";
+import { DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL } from '../utils/constants';
 
 // Define which categories allow multiple selections (e.g., Topping, Art)
 const MULTI_SELECT_CATEGORIES = ["Topping", "Art"];
@@ -25,8 +27,7 @@ const Order = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const formatPrice = (price) =>
-    `KSh ${parseFloat(price).toLocaleString("en-KE")}`;
+
 
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -322,8 +323,7 @@ const Order = () => {
                               className="customization-img"
                               onError={(e) => {
                                 e.target.onerror = null;
-                                e.target.src =
-                                  "https://placehold.co/64x64/CCCCCC/333333?text=IMG";
+                                e.target.src = DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL;
                               }}
                             />
                           )}

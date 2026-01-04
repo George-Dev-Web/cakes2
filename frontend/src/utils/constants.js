@@ -1,0 +1,2 @@
+export const DEFAULT_PLACEHOLDER_IMAGE_URL = 'https://placehold.co/400x300/ff6b9d/ffffff?text=Cake';
+export const DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL = 'https://placehold.co/64x64/CCCCCC/333333?text=IMG';

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   fetchAdminStats,
@@ -26,13 +26,7 @@ const AdminDashboard = () => {
   const [error, setError] = useState("");
   const { currentUser } = useAuth();
 
-  useEffect(() => {
-    if (currentUser && currentUser.is_admin) {
-      loadData();
-    }
-  }, [currentUser, activeTab]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       switch (activeTab) {
@@ -65,7 +59,13 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (currentUser && currentUser.is_admin) {
+      loadData();
+    }
+  }, [currentUser, activeTab, loadData]);
 
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {

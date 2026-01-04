@@ -11,6 +11,7 @@ import { toast } from "react-toastify";
 
 const AuthContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   return useContext(AuthContext);
 };
@@ -26,7 +27,7 @@ export const AuthProvider = ({ children }) => {
         // Session valid
         setCurrentUser(user);
       })
-      .catch((error) => {
+      .catch(() => {
         // 🔑 FIX: Catch the error and set currentUser to null gracefully.
         // The API call failed (likely 401), meaning the session is dead.
         console.warn("Auth context session check failed. Logging user out.");

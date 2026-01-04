@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { formatPrice } from '../utils/formatting';
 import { fetchOrderDetails } from '../utils/api';
 import { toast } from 'react-toastify';
 import './OrderConfirmation.css';
@@ -10,13 +11,7 @@ const OrderConfirmation = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (orderNumber) {
-      loadOrderDetails();
-    }
-  }, [orderNumber]);
-
-  const loadOrderDetails = async () => {
+  const loadOrderDetails = useCallback(async () => {
     try {
       const orderData = await fetchOrderDetails(orderNumber);
       setOrder(orderData);
@@ -27,9 +22,14 @@ const OrderConfirmation = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, orderNumber]);
 
-  const formatPrice = (price) => `KSh ${parseFloat(price).toLocaleString('en-KE')}`;
+  useEffect(() => {
+    if (orderNumber) {
+      loadOrderDetails();
+    }
+  }, [orderNumber, loadOrderDetails]);
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -83,7 +83,7 @@ const OrderConfirmation = () => {
         <div className="confirmation-content">
           {/* Order Status */}
           <div className="status-card">
-            <div 
+            <div
               className="status-badge"
               style={{ backgroundColor: statusInfo.color }}
             >
@@ -144,23 +144,23 @@ const OrderConfirmation = () => {
                     <h4>{item.cake?.name || 'Custom Cake'}</h4>
                     <span className="item-price">{formatPrice(item.subtotal)}</span>
                   </div>
-                  
+
                   <div className="item-details">
                     <p><strong>Size:</strong> {item.cake_size}</p>
                     <p><strong>Quantity:</strong> {item.quantity}</p>
-                    
+
                     {item.flavor && <p><strong>Flavor:</strong> {item.flavor}</p>}
                     {item.frosting && <p><strong>Frosting:</strong> {item.frosting}</p>}
-                    
+
                     {item.message_on_cake && (
                       <p className="cake-message">
                         <strong>Message:</strong> &quot;{item.message_on_cake}&quot;
                       </p>
                     )}
-                    
+
                     {item.is_vegan && <span className="badge">🌱 Vegan</span>}
                     {item.is_gluten_free && <span className="badge">🌾 Gluten-Free</span>}
-                    
+
                     {item.notes && (
                       <p className="item-notes">
                         <strong>Notes:</strong> {item.notes}

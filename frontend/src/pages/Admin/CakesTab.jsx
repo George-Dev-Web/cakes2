@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createCake, updateCake, deleteCake } from "../../utils/api";
+import { formatPrice } from "../../utils/formatting";
 
 const CakesTab = ({ cakes, onRefresh }) => {
   const [isAdding, setIsAdding] = useState(false);
@@ -10,8 +11,6 @@ const CakesTab = ({ cakes, onRefresh }) => {
     price: "",
     image_url: "",
   });
-
-  const formatPrice = (price) => `KSh ${price.toLocaleString("en-KE")}`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

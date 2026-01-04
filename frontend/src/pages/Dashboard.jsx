@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { formatPrice } from "../utils/formatting";
 import { fetchUserOrders, cancelOrder, updateUserProfile } from "../utils/api";
 import "./Dashboard.css";
 
@@ -17,10 +18,7 @@ const Dashboard = () => {
   const { currentUser, updateUser } = useAuth();
   const _navigate = useNavigate();
 
-  // Format price as Kenyan Shillings
-  const formatPrice = (price) => {
-    return `KSh ${price.toLocaleString("en-KE")}`;
-  };
+
 
   useEffect(() => {
     const getUserOrders = async () => {

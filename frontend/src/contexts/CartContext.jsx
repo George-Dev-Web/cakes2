@@ -3,27 +3,28 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 const CartContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCart = () => {
   return useContext(CartContext);
 };
 
-// Helper function to calculate the price of a single cart item
-const calculateItemPrice = (item) => {
-  let price = item.base_price || 0;
-
-  // Add customization costs (assuming customizations is an array of objects with a 'price' property)
-  if (item.customizations && Array.isArray(item.customizations)) {
-    price += item.customizations.reduce((sum, customization) => {
-      // Assuming customization objects have a 'price' field
-      return sum + (customization.price || 0);
-    }, 0);
-  }
-
-  // Multiply by quantity
-  return price * item.quantity;
-};
-
 export const CartProvider = ({ children }) => {
+  // Helper function to calculate the price of a single cart item
+  const calculateItemPrice = (item) => {
+    let price = item.base_price || 0;
+
+    // Add customization costs (assuming customizations is an array of objects with a 'price' property)
+    if (item.customizations && Array.isArray(item.customizations)) {
+      price += item.customizations.reduce((sum, customization) => {
+        // Assuming customization objects have a 'price' field
+        return sum + (customization.price || 0);
+      }, 0);
+    }
+
+    // Multiply by quantity
+    return price * item.quantity;
+  };
+
   // Initialize state from localStorage for persistence across refreshes
   const [cartItems, setCartItems] = useState(() => {
     try {

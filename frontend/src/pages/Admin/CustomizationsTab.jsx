@@ -1,10 +1,8 @@
 // frontend/src/pages/Admin/CustomizationsTab.jsx
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../utils/api";
 import "./CustomizationsTab.css";
-
-const API_ADMIN = "http://localhost:5000/api/admin/customizations";
-const API_LIST = "http://localhost:5000/api/customizations";
+import { formatPrice } from "../../utils/formatting";
 
 const CustomizationsTab = () => {
   // customizations state still holds the GROUPED array structure for rendering
@@ -24,7 +22,7 @@ const CustomizationsTab = () => {
    */
   const loadCustomizations = async () => {
     try {
-      const res = await axios.get(API_LIST);
+      const res = await api.get('/customizations');
       const flatCustomizations = res.data; // This is now a flat array
 
       // 1. Group the flat array into an object: { category: [options] }
@@ -82,9 +80,9 @@ const CustomizationsTab = () => {
       };
 
       if (editingId) {
-        await axios.put(`${API_ADMIN}/${editingId}`, submissionData);
+        await api.put(`/admin/customizations/${editingId}`, submissionData);
       } else {
-        await axios.post(API_ADMIN, submissionData);
+        await api.post('/admin/customizations', submissionData);
       }
       setForm({ category: "", name: "", price: 0, active: true });
       setEditingId(null);
@@ -113,7 +111,7 @@ const CustomizationsTab = () => {
     if (!window.confirm("Are you sure you want to delete this customization?"))
       return;
     try {
-      await axios.delete(`${API_ADMIN}/${id}`);
+      await api.delete(`/admin/customizations/${id}`);
       loadCustomizations();
     } catch (err) {
       console.error(err);
@@ -177,7 +175,7 @@ const CustomizationsTab = () => {
             {group.options?.map((option) => (
               <div key={option.id} className="customization-item">
                 <span>
-                  {option.name} — ${option.price.toFixed(2)}{" "}
+                  {option.name} — {formatPrice(option.price)}{" "}
                   {!option.active && "(Inactive)"}
                 </span>
                 <div className="actions">

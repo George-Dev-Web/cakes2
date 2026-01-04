@@ -11,7 +11,8 @@ from app import create_app
 from extensions import db
 from models.cake import Cake
 from models.User import User
-from models.order import Order
+from models.order import Order, OrderItem
+from models.customization import CustomizationOption
 
 def create_sample_data():
     app = create_app()
@@ -22,6 +23,7 @@ def create_sample_data():
         db.session.query(Order).delete()
         db.session.query(Cake).delete()
         db.session.query(User).delete()
+        db.session.query(CustomizationOption).delete() # Clear customization options
         db.session.commit()
         
         # Create sample cakes
@@ -82,6 +84,24 @@ def create_sample_data():
         
         db.session.commit()
         print(f"Created {len(cakes)} sample cakes")
+
+        # Create sample customization options
+        print("Creating sample customization options...")
+        customization_options = [
+            # Cake Sizes
+            CustomizationOption(category='size', name='Small', price=2000.0, description='Serves 6-8'),
+            CustomizationOption(category='size', name='Medium', price=3500.0, description='Serves 10-14'),
+            CustomizationOption(category='size', name='Large', price=5000.0, description='Serves 16-20'),
+            CustomizationOption(category='size', name='XL', price=7500.0, description='Serves 22-26'),
+            # Dietary Restrictions
+            CustomizationOption(category='dietary_restriction', name='Gluten-Free', price=500.0, description='Gluten-free flour blend'),
+            CustomizationOption(category='dietary_restriction', name='Vegan', price=500.0, description='Plant-based ingredients'),
+        ]
+
+        for option in customization_options:
+            db.session.add(option)
+        db.session.commit()
+        print(f"Created {len(customization_options)} sample customization options")
         
         # Create sample users
         print("Creating sample users...")
@@ -139,20 +159,53 @@ def create_sample_data():
                 cake = random.choice(cakes)
                 quantity = random.randint(1, 3)
                 delivery_date = datetime.now().date() + timedelta(days=random.randint(1, 30))
+                order_number = f"ORD-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                 
+                # Create Order
                 order = Order(
                     user_id=user.id,
-                    cake_id=cake.id,
-                    quantity=quantity,
+                    order_number=order_number,
                     customer_name=user.name,
                     customer_email=user.email,
                     customer_phone=f"555-{random.randint(100, 999)}-{random.randint(1000, 9999)}",
+                    delivery_address="Random Address",
                     delivery_date=delivery_date,
-                    special_requests=random.choice(special_requests),
-                    total_price=cake.price * quantity,
+                    delivery_time=random.choice(['Morning', 'Afternoon', 'Evening']),
+                    payment_method=random.choice(['Cash on Delivery', 'M-Pesa']),
                     status=random.choice(statuses),
-                    created_at=datetime.now() - timedelta(days=random.randint(1, 90))
+                    special_instructions=random.choice(special_requests),
+                    created_at=datetime.now() - timedelta(days=random.randint(1, 90)),
+                    subtotal=0.0, # Will be calculated
+                    total_price=0.0 # Will be calculated
                 )
+                db.session.add(order)
+                db.session.flush() # Assign an ID to the order before creating items
+
+                # Create OrderItem
+                order_item_base_price = cake.price # Assuming cake.price is the base for order item
+                order_item_unit_price = order_item_base_price # No customizations for seed data yet
+                order_item_subtotal = order_item_unit_price * quantity
+
+                order_item = OrderItem(
+                    order_id=order.id,
+                    cake_id=cake.id,
+                    quantity=quantity,
+                    base_price=order_item_base_price,
+                    customization_price=0.0,
+                    unit_price=order_item_unit_price,
+                    subtotal=order_item_subtotal,
+                    cake_shape=random.choice(['Round', 'Square']),
+                    cake_size=random.choice(['Small', 'Medium', 'Large']),
+                    flavor=random.choice(['Vanilla', 'Chocolate', 'Red Velvet']),
+                    frosting=random.choice(['Buttercream', 'Cream Cheese']),
+                    message_on_cake=random.choice(["Happy Birthday!", "Congratulations!", ""]),
+                    notes=random.choice(special_requests)
+                )
+                db.session.add(order_item)
+                
+                order.subtotal += order_item_subtotal
+                order.total_price += order_item_subtotal # For simplicity, total_price = subtotal for seed
+
                 orders.append(order)
         
         # Add some guest orders (without user_id)
@@ -160,26 +213,56 @@ def create_sample_data():
             cake = random.choice(cakes)
             quantity = random.randint(1, 2)
             delivery_date = datetime.now().date() + timedelta(days=random.randint(1, 30))
+            order_number = f"ORD-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
             
             customer_names = ["Olivia Davis", "William Taylor", "Ava Anderson", "Benjamin Thomas", "Mia Jackson"]
             
+            # Create Order
             order = Order(
                 user_id=None,
-                cake_id=cake.id,
-                quantity=quantity,
+                order_number=order_number,
                 customer_name=random.choice(customer_names),
                 customer_email=f"customer{random.randint(100, 999)}@example.com",
                 customer_phone=f"555-{random.randint(100, 999)}-{random.randint(1000, 9999)}",
+                delivery_address="Guest Address",
                 delivery_date=delivery_date,
-                special_requests=random.choice(special_requests),
-                total_price=cake.price * quantity,
+                delivery_time=random.choice(['Morning', 'Afternoon', 'Evening']),
+                payment_method=random.choice(['Cash on Delivery', 'M-Pesa']),
                 status=random.choice(statuses),
-                created_at=datetime.now() - timedelta(days=random.randint(1, 90))
+                special_instructions=random.choice(special_requests),
+                created_at=datetime.now() - timedelta(days=random.randint(1, 90)),
+                subtotal=0.0, # Will be calculated
+                total_price=0.0 # Will be calculated
             )
-            orders.append(order)
-        
-        for order in orders:
             db.session.add(order)
+            db.session.flush() # Assign an ID to the order before creating items
+
+            # Create OrderItem
+            order_item_base_price = cake.price
+            order_item_unit_price = order_item_base_price
+            order_item_subtotal = order_item_unit_price * quantity
+
+            order_item = OrderItem(
+                order_id=order.id,
+                cake_id=cake.id,
+                quantity=quantity,
+                base_price=order_item_base_price,
+                customization_price=0.0,
+                unit_price=order_item_unit_price,
+                subtotal=order_item_subtotal,
+                cake_shape=random.choice(['Round', 'Square']),
+                cake_size=random.choice(['Small', 'Medium', 'Large']),
+                flavor=random.choice(['Vanilla', 'Chocolate', 'Red Velvet']),
+                frosting=random.choice(['Buttercream', 'Cream Cheese']),
+                message_on_cake=random.choice(["Happy Birthday!", "Congratulations!", ""]),
+                notes=random.choice(special_requests)
+            )
+            db.session.add(order_item)
+
+            order.subtotal += order_item_subtotal
+            order.total_price += order_item_subtotal # For simplicity, total_price = subtotal for seed
+
+            orders.append(order)
         
         db.session.commit()
         print(f"Created {len(orders)} sample orders")

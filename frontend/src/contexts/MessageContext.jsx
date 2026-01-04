@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useCallback } from "react";
 
 const MessageContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useMessage = () => useContext(MessageContext);
 
 export const MessageProvider = ({ children }) => {

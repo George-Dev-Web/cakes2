@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import { formatPrice } from '../utils/formatting';
 import { createOrder } from '../utils/api';
 import { toast } from 'react-toastify';
 import './CheckoutPage.css';
@@ -60,7 +61,7 @@ const CheckoutPage = () => {
   const tax = subtotal * taxRate;
   const total = subtotal + deliveryFee + tax;
 
-  const formatPrice = (price) => `KSh ${parseFloat(price).toLocaleString('en-KE')}`;
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatPrice } from '../utils/formatting';
 import { fetchPortfolioCakes } from '../utils/api';
 import { toast } from 'react-toastify';
 import './CakePortfolio.css';
+import { DEFAULT_PLACEHOLDER_IMAGE_URL } from '../utils/constants';
 
 const CakePortfolio = () => {
   const navigate = useNavigate();
@@ -13,11 +15,7 @@ const CakePortfolio = () => {
 
   const categories = ['All', 'Birthday', 'Wedding', 'Anniversary', 'Corporate', 'Custom', 'Other'];
 
-  useEffect(() => {
-    loadCakes();
-  }, [selectedCategory, pagination.page]);
-
-  const loadCakes = async () => {
+  const loadCakes = useCallback(async () => {
     setLoading(true);
     try {
       const params = {
@@ -45,7 +43,11 @@ const CakePortfolio = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.perPage, selectedCategory]);
+
+  useEffect(() => {
+    loadCakes();
+  }, [loadCakes]);
 
   const handleCategoryChange = (category) => {
     setSelectedCategory(category);
@@ -61,7 +63,7 @@ const CakePortfolio = () => {
     navigate('/order', { state: { templateCake: cake } });
   };
 
-  const formatPrice = (price) => `KSh ${parseFloat(price).toLocaleString('en-KE')}`;
+
 
   return (
     <div className="portfolio-page">
@@ -108,7 +110,7 @@ const CakePortfolio = () => {
                         onClick={() => handleCakeClick(cake.id)}
                         style={{
                           backgroundImage: `url(${
-                            cake.primary_image_url || 'https://placehold.co/400x300/ff6b9d/ffffff?text=Cake'
+                            cake.primary_image_url || DEFAULT_PLACEHOLDER_IMAGE_URL
                           })`,
                         }}
                       >
