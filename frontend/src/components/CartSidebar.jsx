@@ -1,73 +1,90 @@
-// frontend/src/components/CartSidebar.jsx (Example)
-import React from "react";
 import { useCart } from "../contexts/CartContext";
-import { useNavigate } from "react-router-dom";
 import { formatPrice } from "../utils/formatting";
+import { useNavigate } from "react-router-dom";
+import "./CartSidebar.css";
 
 const CartSidebar = ({ isOpen, onClose }) => {
+  // We only pull exactly what exists in your CartContext.jsx
   const {
     cartItems,
+    subtotal,
     removeFromCart,
     updateQuantity,
-    getGrandTotal,
     calculateItemPrice,
   } = useCart();
+
   const navigate = useNavigate();
 
   if (!isOpen) return null;
 
-  const handleCheckout = () => {
-    onClose();
-    navigate("/checkout"); // Navigate to the new Checkout page
-  };
-
   return (
-    <div className="cart-sidebar">
-      <div className="cart-header">
-        <h2>Your Cake Basket ({cartItems.length} items)</h2>
-        <button onClick={onClose}>&times;</button>
-      </div>
+    <div className="cart-overlay" onClick={onClose}>
+      <div className="cart-sidebar" onClick={(e) => e.stopPropagation()}>
+        <div className="cart-header">
+          <h2>Your Cart ({cartItems?.length || 0})</h2>
+          <button className="close-btn" onClick={onClose}>
+            &times;
+          </button>
+        </div>
 
-      <div className="cart-items-list">
-        {cartItems.length === 0 ? (
-          <p>Your basket is empty. Add a custom cake!</p>
-        ) : (
-          cartItems.map((item) => (
-            <div key={item.cart_item_id} className="cart-item">
-              <h4>{item.name}</h4>
-              <p>Base Price: {formatPrice(item.base_price)}</p>
-              {/* Note: You'll need to display customization details here */}
-
-              <div className="item-controls">
-                <input
-                  type="number"
-                  min="1"
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateQuantity(item.cart_item_id, parseInt(e.target.value))
-                  }
-                />
-                <button onClick={() => removeFromCart(item.cart_item_id)}>
-                  Remove
-                </button>
-                <span className="item-total">
-                  Total: {formatPrice(calculateItemPrice(item))}
-                </span>
+        <div className="cart-content">
+          {!cartItems || cartItems.length === 0 ? (
+            <p className="empty-msg">Your cart is empty</p>
+          ) : (
+            cartItems.map((item) => (
+              <div key={item.cart_item_id} className="sidebar-item">
+                <div className="item-details">
+                  <h4>{item.name}</h4>
+                  {/* Using the helper function we verified in CartContext */}
+                  <p>{formatPrice(calculateItemPrice(item))}</p>
+                  <small>
+                    {item.customizations?.map((c) => c.name).join(", ")}
+                  </small>
+                </div>
+                <div className="item-actions">
+                  <div className="qty-btns">
+                    <button
+                      onClick={() => updateQuantity(item.cart_item_id, -1)}
+                    >
+                      -
+                    </button>
+                    <span>{item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item.cart_item_id, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    className="remove-link"
+                    onClick={() => removeFromCart(item.cart_item_id)}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
 
-      <div className="cart-footer">
-        <h3>Grand Total: {formatPrice(getGrandTotal())}</h3>
-        <button
-          onClick={handleCheckout}
-          disabled={cartItems.length === 0}
-          className="btn btn-primary"
-        >
-          Proceed to Checkout
-        </button>
+        {cartItems?.length > 0 && (
+          <div className="cart-footer">
+            <div className="subtotal">
+              <span>Subtotal</span>
+              {/* Note: subtotal is a NUMBER, not a function. No parentheses! */}
+              <span>{formatPrice(subtotal)}</span>
+            </div>
+            <button
+              className="checkout-btn"
+              onClick={() => {
+                navigate("/checkout");
+                onClose();
+              }}
+            >
+              Go to Checkout
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 from marshmallow import Schema, fields, validate
 
 
-class CakeSchema(Schema):
+class CakeBaseSchema(Schema):
     """Schema for cake serialization."""
     id = fields.Int(dump_only=True)
     name = fields.Str(required=True)

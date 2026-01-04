@@ -40,9 +40,6 @@ def create_order():
         return '', 200
         
     try:
-        # Manually validate for POST
-        # If you have a @validate_request decorator, ensure it handles OPTIONS 
-        # or call validation manually here.
         data = request.get_json()
         user_id = None
         
@@ -52,14 +49,16 @@ def create_order():
         except:
             pass
         
-        cart = Cart.query.get(data['cart_id'])
-        if not cart or cart.get_item_count() == 0:
-            return jsonify({"message": "Cart is empty"}), 400
+        # 🛡️ CHANGE 1: Use items sent from Frontend, not the DB Cart
+        cart_items_data = data.get('cart_items', [])
+        if not cart_items_data:
+            return jsonify({"message": "No items in order"}), 400
         
-        subtotal = cart.get_total()
-        delivery_fee = 500.0
-        tax = subtotal * 0.16
-        total = subtotal + delivery_fee + tax
+        # 🛡️ CHANGE 2: Use prices calculated by Frontend (or recalculate here)
+        subtotal = float(data.get('subtotal', 0))
+        delivery_fee = float(data.get('delivery_fee', 500.0))
+        tax = float(data.get('tax', subtotal * 0.16))
+        total = float(data.get('total_price', subtotal + delivery_fee + tax))
         
         order = Order(
             order_number=generate_order_number(),
@@ -79,31 +78,48 @@ def create_order():
         )
         
         db.session.add(order)
-        db.session.flush()
+        db.session.flush() # Gets us the order.id
         
-        for cart_item in cart.items:
+        # 🛡️ CHANGE 3: Loop through the JSON items from frontend
+        # Inside create_order function, after db.session.flush()
+        
+        for item in data.get('cart_items', []):
+            # Calculate a fallback price if not provided
+            item_base_price = float(item.get('base_price', 0))
+            if item_base_price <= 0:
+                # If frontend didn't send base_price, use subtotal / quantity as safety
+                item_base_price = float(data.get('subtotal', 0)) / len(data.get('cart_items', [1]))
+
             order_item = OrderItem(
                 order_id=order.id,
-                cake_id=cart_item.cake_id,
-                quantity=cart_item.quantity,
-                cake_shape=cart_item.cake_shape,
-                cake_size=cart_item.cake_size,
-                cake_layers=cart_item.cake_layers,
-                flavor=cart_item.flavor,
-                filling=cart_item.filling,
-                frosting=cart_item.frosting,
-                toppings=cart_item.toppings,
-                decorations=cart_item.decorations,
-                message_on_cake=cart_item.message_on_cake,
-                base_price=cart_item.base_price,
-                customization_price=cart_item.customization_price,
-                unit_price=cart_item.base_price + cart_item.customization_price,
-                subtotal=cart_item.get_subtotal(),
-                notes=cart_item.notes
+                cake_id=item.get('cake_id'),
+                quantity=item.get('quantity', 1),
+                
+                # 🔑 FIX: Provide default strings for "NOT NULL" columns 
+                # to prevent the psycopg2.errors.NotNullViolation
+                cake_shape=item.get('cake_shape', 'Round'),
+                cake_size=item.get('cake_size', 'Standard'),
+                cake_layers=item.get('cake_layers', '1'),
+                flavor=item.get('flavor', 'Original'),
+                filling=item.get('filling', 'None'),
+                frosting=item.get('frosting', 'Standard'),
+                
+                # 💰 THE CRITICAL FIX: Ensure these are never None
+                base_price=item_base_price,
+                customization_price=float(item.get('customization_price', 0.0)),
+                unit_price=float(item.get('unit_price', item_base_price)),
+                subtotal=float(item.get('subtotal', item_base_price * item.get('quantity', 1))),
+                
+                notes=str(item.get('customizations', '')),
+                
+                # Defaults for booleans (from your SQL log, these seem to be f/false)
+                is_gluten_free=item.get('is_gluten_free', False),
+                is_vegan=item.get('is_vegan', False),
+                is_sugar_free=item.get('is_sugar_free', False),
+                is_dairy_free=item.get('is_dairy_free', False)
             )
             db.session.add(order_item)
         
-        CartItem.query.filter_by(cart_id=cart.id).delete()
         db.session.commit()
         
         try:
@@ -116,7 +132,7 @@ def create_order():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Order Error: {e}")
-        return jsonify({"message": str(e)}), 500
+        return jsonify({"message": f"Server Error: {str(e)}"}), 500
 
 # --- GET USER ORDERS (The failing route) ---
 @order_bp.route('/orders/my-orders', methods=['GET', 'OPTIONS'])

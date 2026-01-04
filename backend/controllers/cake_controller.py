@@ -2,18 +2,18 @@
 from flask import Blueprint, jsonify, request, current_app
 from extensions import db
 from models.cake import Cake
-from schemas.cake_schema import CakeSchema, CakeCreateSchema, CakeUpdateSchema
+from schemas.cake_schema import CakeBaseSchema, CakeCreateSchema, CakeUpdateSchema
 from utils.exceptions import ResourceNotFoundError, ValidationError, DatabaseError
 from utils.validators import validate_request, validate_pagination_params
 
 cake_bp = Blueprint('cakes', __name__)
 
 # Initialize schemas
-cake_schema = CakeSchema()
-cakes_schema = CakeSchema(many=True)
+cake_schema = CakeBaseSchema()
+cakes_schema = CakeBaseSchema(many=True)
 
 
-@cake_bp.route('/cakes', methods=['GET'])
+@cake_bp.route('/cakes', methods=['GET'])   
 def get_cakes():
     """Get all cakes with optional pagination."""
     try:

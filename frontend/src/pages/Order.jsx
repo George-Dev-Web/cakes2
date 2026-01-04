@@ -1,35 +1,35 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../contexts/CartContext";
+import { useAuth } from "../contexts/AuthContext";
 import { formatPrice } from "../utils/formatting";
 import { fetchCakes, fetchCustomizations } from "../utils/api";
 import { toast } from "react-toastify";
+import { DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL } from "../utils/constants";
 import "./Order.css";
-import { DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL } from '../utils/constants';
 
-// Define which categories allow multiple selections (e.g., Topping, Art)
 const MULTI_SELECT_CATEGORIES = ["Topping", "Art"];
 
 const Order = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { user } = useAuth();
 
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [cakes, setCakes] = useState([]);
+  const [customizations, setCustomizations] = useState([]);
+  const [selectedCustomizations, setSelectedCustomizations] = useState({});
   const [orderData, setOrderData] = useState({
     cake_id: "",
     quantity: 1,
     delivery_date: "",
     special_requests: "",
+    allergies: "",
+    reference_image: "",
   });
 
-  const [cakes, setCakes] = useState([]);
-  const [customizations, setCustomizations] = useState([]);
-  const [selectedCustomizations, setSelectedCustomizations] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-
-
-  // --- DATA FETCHING ---
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -37,343 +37,262 @@ const Order = () => {
           fetchCakes(),
           fetchCustomizations(),
         ]);
-
         setCakes(cakesData);
 
-        // Handle Customizations (Group flat array if necessary)
         let grouped = [];
         if (Array.isArray(customData)) {
-          // If already grouped (has 'options' array)
-          if (customData.length > 0 && customData[0].options) {
-            grouped = customData;
-          } else {
-            // Group flat array by category
-            const groups = {};
-            customData.forEach((item) => {
-              // Skip inactive items
-              if (item.is_active === false || item.active === false) return;
-
-              const cat = item.category || "Other";
-              if (!groups[cat]) groups[cat] = [];
-              groups[cat].push(item);
-            });
-            grouped = Object.entries(groups).map(([category, options]) => ({
-              category,
-              options,
-            }));
-          }
+          const groups = {};
+          customData.forEach((item) => {
+            if (!item || !(item.id || item._id) || !item.name) return;
+            if (item.active === false || item.is_active === false) return;
+            const cat = item.category || "Other";
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(item);
+          });
+          grouped = Object.entries(groups).map(([category, options]) => ({
+            category,
+            options,
+          }));
         }
         setCustomizations(grouped);
+
+        if (user?.preferences) {
+          const prefs =
+            typeof user.preferences === "string"
+              ? JSON.parse(user.preferences)
+              : user.preferences;
+          if (prefs.allergies)
+            setOrderData((prev) => ({ ...prev, allergies: prefs.allergies }));
+        }
       } catch (err) {
-        setError("Failed to load data. Please try again later.");
-        console.error("Error fetching data:", err);
+        toast.error("Failed to load data.");
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, []);
+  }, [user]);
 
-  const handleChange = (e) => {
-    const { name, value, type } = e.target;
-    const val = type === "number" ? Number(value) : value;
-    setOrderData({ ...orderData, [name]: val });
-  };
+  const progressPercentage = (step / 3) * 100;
 
-  // --- CORE CUSTOMIZATION LOGIC ---
   const handleCustomizationSelect = (category, option) => {
-    const isMultiSelect = MULTI_SELECT_CATEGORIES.includes(category);
-
+    const isMulti = MULTI_SELECT_CATEGORIES.includes(category);
     setSelectedCustomizations((prev) => {
-      if (isMultiSelect) {
-        // Multi-Select Logic
-        const currentOptions = Array.isArray(prev[category])
-          ? prev[category]
-          : [];
-        const index = currentOptions.findIndex((o) => o.id === option.id);
-
-        if (index > -1) {
-          // Remove option
-          return {
-            ...prev,
-            [category]: currentOptions.filter((_, i) => i !== index),
-          };
-        } else {
-          // Add option
-          return { ...prev, [category]: [...currentOptions, option] };
-        }
-      } else {
-        // Single-Select Logic
+      if (isMulti) {
+        const current = Array.isArray(prev[category]) ? prev[category] : [];
+        const exists = current.find(
+          (o) => (o.id || o._id) === (option.id || option._id)
+        );
         return {
           ...prev,
-          [category]: prev[category]?.id === option.id ? null : option,
+          [category]: exists
+            ? current.filter(
+                (o) => (o.id || o._id) !== (option.id || option._id)
+              )
+            : [...current, option],
         };
       }
+      return {
+        ...prev,
+        [category]:
+          (prev[category]?.id || prev[category]?._id) ===
+          (option.id || option._id)
+            ? null
+            : option,
+      };
     });
   };
 
   const calculateTotal = () => {
     let total = 0;
-    const quantity = orderData.quantity || 1;
-
-    // 1. Base Cake Price
     const baseCake = cakes.find(
-      (cake) => cake.id === Number(orderData.cake_id)
+      (c) => (c.id || c._id) === Number(orderData.cake_id)
     );
-    if (baseCake) total += baseCake.price * quantity;
-
-    // 2. Customizations Price
-    Object.values(selectedCustomizations).forEach((selection) => {
-      if (Array.isArray(selection)) {
-        selection.forEach((opt) => {
-          if (opt && typeof opt.price === "number")
-            total += opt.price * quantity;
-        });
-      } else if (selection && typeof selection.price === "number") {
-        total += selection.price * quantity;
-      }
-    });
-
-    return total;
+    if (baseCake) total += baseCake.price;
+    Object.values(selectedCustomizations)
+      .flat()
+      .forEach((opt) => {
+        if (opt?.price) total += opt.price;
+      });
+    return total * (orderData.quantity || 1);
   };
 
-  const handleAddToCartAndCheckout = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setError("");
-
     const baseCake = cakes.find(
-      (cake) => cake.id === Number(orderData.cake_id)
+      (c) => (c.id || c._id) === Number(orderData.cake_id)
     );
-    if (!baseCake || orderData.quantity < 1) {
-      setError("Please select a valid cake and quantity.");
-      toast.error("Please select a valid cake and quantity.");
-      return;
-    }
-
-    const allCustomizations = [];
-    let totalPriceAdjustment = 0;
-
-    Object.entries(selectedCustomizations).forEach(([category, selection]) => {
-      if (Array.isArray(selection)) {
-        selection.forEach((opt) => {
-          if (opt) {
-            allCustomizations.push({
-              type: category,
-              name: opt.name,
-              price: opt.price || 0,
-            });
-            totalPriceAdjustment += opt.price || 0;
-          }
-        });
-      } else if (selection) {
-        allCustomizations.push({
-          type: category,
-          name: selection.name,
-          price: selection.price || 0,
-        });
-        totalPriceAdjustment += selection.price || 0;
-      }
+    const allCustoms = [];
+    Object.entries(selectedCustomizations).forEach(([cat, val]) => {
+      const items = Array.isArray(val) ? val : [val];
+      items.forEach(
+        (i) => i && allCustoms.push({ type: cat, name: i.name, price: i.price })
+      );
     });
 
-    const itemToAdd = {
-      cake_id: baseCake.id,
-      name: baseCake.name + " (Custom)",
+    addToCart({
+      ...orderData,
+      name: `${baseCake.name} (Custom)`,
       base_price: baseCake.price,
-      quantity: orderData.quantity,
-      customizations: allCustomizations,
-      metadata: {
-        delivery_date: orderData.delivery_date,
-        special_requests: orderData.special_requests,
-      },
-    };
-
-    addToCart(itemToAdd);
-
-    const itemTotal = baseCake.price + totalPriceAdjustment;
-    toast.success(
-      `${baseCake.name} (Custom) added to basket! Total: ${formatPrice(
-        itemTotal * orderData.quantity
-      )}`
-    );
-
-    setOrderData({
-      cake_id: "",
-      quantity: 1,
-      delivery_date: "",
-      special_requests: "",
+      customizations: allCustoms,
+      total_price: calculateTotal(),
     });
-    setSelectedCustomizations({});
-
+    toast.success("Added to basket!");
     navigate("/checkout");
   };
 
-  // Delivery date constraints
-  const today = new Date();
-  const minDate = new Date(today);
-  minDate.setDate(today.getDate() + 1);
-  const maxDate = new Date(today);
-  maxDate.setMonth(today.getMonth() + 3);
-  const formatDate = (date) => date.toISOString().split("T")[0];
+  if (loading) return <div className="loader">Heating up the oven...</div>;
 
   return (
-    <div className="order-page">
-      <div className="container">
-        <h1>Place Your Custom Cake Order</h1>
-        {error && <div className="error-message">{error}</div>}
-
-        <form className="order-form" onSubmit={handleAddToCartAndCheckout}>
-          {/* Cake Selection */}
-          <div className="form-section">
-            <h3>🎂 Base Cake Selection</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="cake_id">Select Cake *</label>
-                <select
-                  id="cake_id"
-                  name="cake_id"
-                  value={orderData.cake_id}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">Choose a cake</option>
-                  {cakes.map((cake) => (
-                    <option key={cake.id} value={cake.id}>
-                      {cake.name} - {formatPrice(cake.price)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="quantity">Quantity *</label>
-                <input
-                  type="number"
-                  id="quantity"
-                  name="quantity"
-                  min="1"
-                  max="10"
-                  value={orderData.quantity}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="delivery_date">Preferred Delivery Date *</label>
-              <input
-                type="date"
-                id="delivery_date"
-                name="delivery_date"
-                value={orderData.delivery_date}
-                onChange={handleChange}
-                min={formatDate(minDate)}
-                max={formatDate(maxDate)}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Customizations */}
-          <div className="form-section customization-area">
-            <h3>🎨 Customization Options</h3>
-            {loading ? (
-              <p>Loading customization options...</p>
-            ) : customizations.length > 0 ? (
-              customizations.map((group) => {
-                const isMulti = MULTI_SELECT_CATEGORIES.includes(
-                  group.category
-                );
-                const isSelected = (optionId) => {
-                  const selection = selectedCustomizations[group.category];
-                  if (isMulti && Array.isArray(selection)) {
-                    return selection.some((opt) => opt.id === optionId);
-                  }
-                  return selection?.id === optionId;
-                };
-
-                return (
-                  <div key={group.category} className="customization-group">
-                    <h4>
-                      {group.category}{" "}
-                      {isMulti ? "(Multi-Select)" : "(Single-Select)"}
-                    </h4>
-                    <p className="text-sm text-gray-500">
-                      {group.category === "Art"
-                        ? "E.g., Special lettering or complex frosting."
-                        : ""}
-                    </p>
-
-                    <div className="customization-options">
-                      {group.options.map((option) => (
-                        <div
-                          key={option.id}
-                          className={`customization-option ${
-                            isSelected(option.id) ? "selected" : ""
-                          }`}
-                          onClick={() =>
-                            handleCustomizationSelect(group.category, option)
-                          }
-                        >
-                          {option.image_url && (
-                            <img
-                              src={option.image_url}
-                              alt={option.name}
-                              className="customization-img"
-                              onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL;
-                              }}
-                            />
-                          )}
-                          <div className="option-details">
-                            <span>{option.name}</span>
-                            {option.price > 0 && (
-                              <span className="customization-price">
-                                +{formatPrice(option.price)}
-                              </span>
-                            )}
-                          </div>
-                          {option.description && (
-                            <p className="description">{option.description}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p>No customization options available.</p>
-            )}
-            <div className="total-section mt-8 pt-4 border-t border-gray-300">
-              <strong>Order Total: {formatPrice(calculateTotal())}</strong>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3>📝 Final Details & Delivery</h3>
-            <div className="form-group">
-              <label htmlFor="special_requests">
-                Special Requests (e.g., specific placement for art)
-              </label>
-              <textarea
-                id="special_requests"
-                name="special_requests"
-                value={orderData.special_requests}
-                onChange={handleChange}
-                placeholder="Any special instructions or notes"
-                rows="4"
-              ></textarea>
-            </div>
-          </div>
-
-          <button type="submit" className="btn btn-primary">
-            Add Cake to Basket & Go to Checkout
-          </button>
-        </form>
+    <div className="order-wizard">
+      <div className="progress-container">
+        <div className="progress-label">
+          <span>Step {step} of 3</span>
+          <span>{Math.round(progressPercentage)}%</span>
+        </div>
+        <div className="progress-bar-bg">
+          <div
+            className="progress-bar-fill"
+            style={{ width: `${progressPercentage}%` }}
+          ></div>
+        </div>
       </div>
+
+      <form onSubmit={handleSubmit} className="wizard-form">
+        {step === 1 && (
+          <div className="step-fade-in">
+            <h2>Select Your Cake</h2>
+            <div className="cake-selection-grid">
+              {cakes.map((cake) => (
+                <div
+                  key={cake.id || cake._id}
+                  className={`cake-card-visual ${
+                    orderData.cake_id === cake.id ? "selected" : ""
+                  }`}
+                  onClick={() => {
+                    setOrderData({ ...orderData, cake_id: cake.id });
+                    setTimeout(() => setStep(2), 400);
+                  }}
+                >
+                  <div className="card-image-wrapper">
+                    <img
+                      src={
+                        cake.image_url || DEFAULT_SMALL_PLACEHOLDER_IMAGE_URL
+                      }
+                      alt=""
+                    />
+                  </div>
+                  <div className="card-meta">
+                    <h4>{cake.name}</h4>
+                    <p className="price-tag">{formatPrice(cake.price)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="step-fade-in">
+            <h2>Choose Flavors</h2>
+            {customizations.map((group) => (
+              <div key={group.category} className="custom-group-section">
+                <h3>{group.category.replace(/_/g, " ")}</h3>
+                <div className="options-pill-container">
+                  {group.options.map((opt) => {
+                    const active = MULTI_SELECT_CATEGORIES.includes(
+                      group.category
+                    )
+                      ? selectedCustomizations[group.category]?.some(
+                          (o) => (o.id || o._id) === (opt.id || opt._id)
+                        )
+                      : (selectedCustomizations[group.category]?.id ||
+                          selectedCustomizations[group.category]?._id) ===
+                        (opt.id || opt._id);
+                    return (
+                      <button
+                        key={opt.id || opt._id}
+                        type="button"
+                        className={`pill-option ${active ? "active" : ""}`}
+                        onClick={() =>
+                          handleCustomizationSelect(group.category, opt)
+                        }
+                      >
+                        {opt.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="step-footer">
+              <button
+                type="button"
+                className="btn-back"
+                onClick={() => setStep(1)}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="btn-next"
+                onClick={() => setStep(3)}
+              >
+                Next Step
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="step-fade-in">
+            <h2>Final Details</h2>
+            <input
+              type="date"
+              required
+              value={orderData.delivery_date}
+              onChange={(e) =>
+                setOrderData({ ...orderData, delivery_date: e.target.value })
+              }
+            />
+            <input
+              type="text"
+              placeholder="Allergies"
+              value={orderData.allergies}
+              onChange={(e) =>
+                setOrderData({ ...orderData, allergies: e.target.value })
+              }
+            />
+            <textarea
+              placeholder="Special Requests"
+              value={orderData.special_requests}
+              onChange={(e) =>
+                setOrderData({ ...orderData, special_requests: e.target.value })
+              }
+            />
+            <div className="sticky-price-bar">
+              <div className="price-info">
+                <span>Total:</span>
+                <span className="total-amount">
+                  {formatPrice(calculateTotal())}
+                </span>
+              </div>
+              <div className="action-btns">
+                <button
+                  type="button"
+                  className="btn-back"
+                  onClick={() => setStep(2)}
+                >
+                  Back
+                </button>
+                <button type="submit" className="btn-submit">
+                  Add to Cart
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </form>
     </div>
   );
 };

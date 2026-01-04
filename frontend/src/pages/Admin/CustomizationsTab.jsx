@@ -1,11 +1,9 @@
-// frontend/src/pages/Admin/CustomizationsTab.jsx
 import { useState, useEffect } from "react";
 import api from "../../utils/api";
 import "./CustomizationsTab.css";
 import { formatPrice } from "../../utils/formatting";
 
 const CustomizationsTab = () => {
-  // customizations state still holds the GROUPED array structure for rendering
   const [customizations, setCustomizations] = useState([]);
   const [form, setForm] = useState({
     category: "",
@@ -17,29 +15,18 @@ const CustomizationsTab = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /**
-   * REWRITTEN: Fetches the flat array and groups it by category.
-   */
   const loadCustomizations = async () => {
     try {
-      const res = await api.get('/customizations');
-      const flatCustomizations = res.data; // This is now a flat array
+      const res = await api.get("/customizations");
+      const flatCustomizations = res.data;
 
-      // 1. Group the flat array into an object: { category: [options] }
       const groupedObject = flatCustomizations.reduce((acc, item) => {
-        // Ensure item.price is treated as a number
         item.price = parseFloat(item.price || 0);
-
-        // Initialize the array for the category if it doesn't exist
         acc[item.category] = acc[item.category] || [];
-
-        // Add the current item to its category array
         acc[item.category].push(item);
         return acc;
       }, {});
 
-      // 2. Convert the grouped object into the final array state:
-      // [{ category: "Flavor", options: [...] }, ...]
       const groupedArray = Object.entries(groupedObject).map(
         ([category, options]) => ({
           category,
@@ -49,7 +36,6 @@ const CustomizationsTab = () => {
 
       setCustomizations(groupedArray);
     } catch (err) {
-      console.error(err);
       setError("Failed to load customizations.");
     }
   };
@@ -67,29 +53,17 @@ const CustomizationsTab = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (!form.category || !form.name) {
-        setError("Category and Name are required");
-        setLoading(false);
-        return;
-      }
-
-      // Prepare data for the backend, ensuring price is a number
-      const submissionData = {
-        ...form,
-        price: parseFloat(form.price),
-      };
-
+      const submissionData = { ...form, price: parseFloat(form.price) };
       if (editingId) {
         await api.put(`/admin/customizations/${editingId}`, submissionData);
       } else {
-        await api.post('/admin/customizations', submissionData);
+        await api.post("/admin/customizations", submissionData);
       }
+      // Resetting to empty strings instead of nulls keeps the inputs "controlled"
       setForm({ category: "", name: "", price: 0, active: true });
       setEditingId(null);
-      // Reload customizations to show the update
       loadCustomizations();
     } catch (err) {
-      console.error(err);
       setError("Failed to save customization.");
     } finally {
       setLoading(false);
@@ -98,53 +72,53 @@ const CustomizationsTab = () => {
 
   const handleEdit = (option) => {
     setForm({
-      category: option.category,
-      name: option.name,
-      price: option.price,
-      // Check for 'active' property, defaulting to true if not present
+      category: option.category || "",
+      name: option.name || "",
+      price: option.price ?? 0,
       active: option.active ?? true,
     });
-    setEditingId(option.id);
+    setEditingId(option.id || option._id);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this customization?"))
+  const handleDelete = async (targetId) => {
+    if (!targetId) {
+      setError("Missing ID for deletion");
       return;
+    }
+    if (!window.confirm("Are you sure?")) return;
     try {
-      await api.delete(`/admin/customizations/${id}`);
+      await api.delete(`/admin/customizations/${targetId}`);
       loadCustomizations();
     } catch (err) {
-      console.error(err);
-      setError("Failed to delete customization.");
+      setError("Failed to delete.");
     }
   };
 
-  // The rendering part remains the same since the state structure is preserved
-
   return (
     <div className="customizations-tab">
-      <h2>Cake Customization Options</h2>
-
+      <h2>Manage Options</h2>
       <form className="customization-form" onSubmit={handleSubmit}>
         <input
           name="category"
-          placeholder="Category (e.g., Flavor, Shape, Frosting)"
-          value={form.category}
+          placeholder="Category"
+          /* FIX: Fallback to "" prevents 'controlled to uncontrolled' error */
+          value={form.category || ""}
           onChange={handleChange}
           required
         />
         <input
           name="name"
-          placeholder="Option name (e.g., Chocolate, Round, Vanilla)"
-          value={form.name}
+          placeholder="Name"
+          /* FIX: Fallback to "" */
+          value={form.name || ""}
           onChange={handleChange}
           required
         />
         <input
           name="price"
           type="number"
-          placeholder="Extra price"
-          value={form.price}
+          /* FIX: Fallback to 0 */
+          value={form.price ?? 0}
           onChange={handleChange}
         />
         <label>
@@ -153,34 +127,36 @@ const CustomizationsTab = () => {
             name="active"
             checked={form.active}
             onChange={handleChange}
-          />
+          />{" "}
           Active
         </label>
         <button type="submit" disabled={loading}>
-          {editingId ? "Update" : "Add"} Option
+          {editingId ? "Update" : "Add"}
         </button>
       </form>
 
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error-message" style={{ color: "red" }}>
+          {error}
+        </p>
+      )}
 
       <div className="customizations-list">
-        {customizations.length === 0 && (
-          <p>No customization options available.</p>
-        )}
-
         {customizations.map((group) => (
           <div key={group.category} className="customization-group">
-            <h3>{group.category}</h3>
-            {/* Added optional chaining (?) just in case, though data is grouped */}
-            {group.options?.map((option) => (
-              <div key={option.id} className="customization-item">
+            <h3>{group.category.replace(/_/g, " ")}</h3>
+            {group.options?.map((option, index) => (
+              /* FIX: Added index as a final fallback for the key warning */
+              <div
+                key={option.id || option._id || `opt-${index}`}
+                className="customization-item"
+              >
                 <span>
-                  {option.name} — {formatPrice(option.price)}{" "}
-                  {!option.active && "(Inactive)"}
+                  {option.name} — {formatPrice(option.price)}
                 </span>
                 <div className="actions">
                   <button onClick={() => handleEdit(option)}>Edit</button>
-                  <button onClick={() => handleDelete(option.id)}>
+                  <button onClick={() => handleDelete(option.id || option._id)}>
                     Delete
                   </button>
                 </div>
